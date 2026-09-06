@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "asset_id": "drone-01",
+  "mission_id": null,
+  "event_time": "2026-01-01T00:00:00Z",
+  "received_at": "2026-01-01T00:00:00.180000Z",
+  "sequence_no": 42,
+  "latitude": 37.5,
+  "longitude": 127.0,
+  "altitude_m": 120.0,
+  "speed_mps": 12.0,
+  "heading_deg": 90.0,
+  "roll_deg": 0.0,
+  "pitch_deg": 0.0,
+  "yaw_deg": 90.0,
+  "battery_pct": 87.5,
+  "rssi_dbm": -58.0,
+  "flight_mode": "AUTO"
+}

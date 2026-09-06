@@ -1,14 +1,8 @@
-"""TelemetryFrame 데이터 계약.
+"""TelemetryFrame 계약 (시뮬레이터 측 구현).
 
-`docs/planning/05_데이터엔지니어링_아키텍처.md`와
-`docs/api/telemetry_frame_dictionary.md`에 정의된 필드·단위·축·범위를 따른다.
-
-좌표계 요약 (자세한 내용은 데이터 사전 참고):
-- 위치: WGS84 경위도(도), 고도는 지면 기준 m
-- heading_deg: 지면 진행 방향(ground track), 0=N, 90=E, 시계방향, [0, 360)
-- yaw_deg: 기체 기수 방향(body heading), heading과 별개 정의, [-180, 180]
-- roll_deg: 우측으로 기울면 양수, [-180, 180]
-- pitch_deg: 기수가 위로 들리면 양수, [-90, 90]
+`backend/app/schemas/telemetry.py`와 동일한 계약을 독립적으로 구현한다.
+동기화 방식은 `docs/decisions/0002-telemetry-contract-duplication.md`,
+필드 정의는 `docs/api/telemetry_frame_dictionary.md` 참고.
 """
 from datetime import datetime
 from enum import Enum
@@ -17,13 +11,11 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class FlightMode(str, Enum):
-    """`docs/api/telemetry_frame_dictionary.md`에 정의된 비행 모드."""
-
     MANUAL = "MANUAL"
     AUTO = "AUTO"
     GUIDED = "GUIDED"
     LOITER = "LOITER"
-    RTL = "RTL"  # Return To Launch
+    RTL = "RTL"
     LANDED = "LANDED"
 
 
@@ -58,12 +50,6 @@ class TelemetryFrame(BaseModel):
 
     @model_validator(mode="after")
     def received_at_not_before_event_time(self) -> "TelemetryFrame":
-        """서버 수신 시각은 원본 이벤트 시각보다 앞설 수 없다(시계 오차 허용치는 두지 않는다).
-
-        지연(delay) 장애 시나리오는 이 관계를 유지한 채 두 시각의 차이를 키우는
-        방식으로 표현한다. 참고: `docs/planning/02_백엔드_아키텍처.md`의
-        "원본 이벤트 시각과 서버 수신 시각을 모두 저장한다".
-        """
         if self.received_at is not None and self.received_at < self.event_time:
             raise ValueError("received_at은 event_time보다 이전일 수 없다")
         return self

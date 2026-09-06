@@ -1,0 +1,41 @@
+{
+  "설명": "각 항목은 TelemetryFrame 계약을 위반해 거부되어야 하는 예시다. docs/api/telemetry_frame_dictionary.md 참고.",
+  "위경도_범위_초과": {
+    "asset_id": "drone-01",
+    "event_time": "2026-01-01T00:00:00Z",
+    "sequence_no": 0,
+    "latitude": 91.0,
+    "longitude": 127.0,
+    "altitude_m": 120.0,
+    "battery_pct": 87.5
+  },
+  "배터리_범위_초과": {
+    "asset_id": "drone-01",
+    "event_time": "2026-01-01T00:00:00Z",
+    "sequence_no": 0,
+    "latitude": 37.5,
+    "longitude": 127.0,
+    "altitude_m": 120.0,
+    "battery_pct": 150.0
+  },
+  "각도_범위_초과": {
+    "asset_id": "drone-01",
+    "event_time": "2026-01-01T00:00:00Z",
+    "sequence_no": 0,
+    "latitude": 37.5,
+    "longitude": 127.0,
+    "altitude_m": 120.0,
+    "battery_pct": 87.5,
+    "roll_deg": 200.0
+  },
+  "수신시각이_이벤트시각보다_이전": {
+    "asset_id": "drone-01",
+    "event_time": "2026-01-01T00:00:05Z",
+    "received_at": "2026-01-01T00:00:00Z",
+    "sequence_no": 0,
+    "latitude": 37.5,
+    "longitude": 127.0,
+    "altitude_m": 120.0,
+    "battery_pct": 87.5
+  }
+}

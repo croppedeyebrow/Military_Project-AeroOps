@@ -4,9 +4,12 @@
 운용 이력을 관리하는 관제 플랫폼. 전체 기체는 2D 지도 심벌로, 선택 기체는 3D
 모델로 표현한다. 자세한 내용은 [`docs/planning/00_종합_기획서.md`](docs/planning/00_종합_기획서.md) 참고.
 
-> 현재 상태: **1단계 — 프로젝트 기반(뼈대) 구성 완료.** 각 서비스는
-> health check 수준의 최소 기능만 구현되어 있으며, 실제 기능은
-> [`docs/roadmap/00_20일_개발로드맵.md`](docs/roadmap/00_20일_개발로드맵.md) 순서대로 구현한다.
+> 현재 상태: **2단계 — 데이터 계약·시뮬레이터 구현 완료.** `TelemetryFrame` 계약
+> (백엔드/시뮬레이터 양쪽 검증), 원형·직선·경유지 비행 시나리오, seed 기반 재현
+> 가능한 10대 생성기, 7종 장애 주입기를 갖췄다. 실제 수집 API(`POST /telemetry`)는
+> 3단계에서 구현되므로 현재 시뮬레이터는 `--sink stdout`으로 독립 검증한다. 진행
+> 상황은 [`docs/dev_history/`](docs/dev_history/), 전체 계획은
+> [`docs/roadmap/00_20일_개발로드맵.md`](docs/roadmap/00_20일_개발로드맵.md) 참고.
 
 ## 구조
 
@@ -18,10 +21,11 @@ AeroOps/
 ├── infra/       Docker Compose, Prometheus, Grafana, reverse proxy
 ├── tests/       서비스 간 통합/E2E 테스트
 └── docs/
-    ├── planning/   기획·아키텍처 문서 (프론트/백엔드/DB/인프라/데이터엔지니어링)
-    ├── roadmap/    20일 단계별 개발 로드맵
-    ├── decisions/  기술 결정 기록(ADR)
-    └── api/        OpenAPI 문서(3단계 이후 생성)
+    ├── planning/     기획·아키텍처 문서 (프론트/백엔드/DB/인프라/데이터엔지니어링)
+    ├── roadmap/      20일 단계별 개발 로드맵과 작업 분해
+    ├── decisions/    기술 결정 기록(ADR)
+    ├── dev_history/  단계별 개발 내역 기록
+    └── api/          데이터 계약·API 문서(OpenAPI는 3단계 이후 생성)
 ```
 
 ## 기술 스택
@@ -50,8 +54,9 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
 - Web: http://localhost:5173 (`npm run dev`로 직접 실행 시) 또는 compose의 5173 포트
 - Grafana: http://localhost:3000, Prometheus: http://localhost:9090
 
-시뮬레이터는 기본적으로 실행되지 않는다(`profiles: with-simulator`).
-2단계에서 실제 데이터 생성 로직을 구현한 뒤 다음처럼 활성화한다:
+시뮬레이터는 기본적으로 실행되지 않는다(`profiles: with-simulator`). 실제 비행
+시나리오·장애 주입 로직은 2단계에서 구현되었지만, 수집 API(`POST /telemetry`)가
+아직 없는 3단계 이전에는 전송이 실패 로그만 남기고 넘어간다:
 
 ```bash
 docker compose -f infra/docker-compose.yml --profile with-simulator up

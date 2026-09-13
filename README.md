@@ -1,14 +1,17 @@
 # AeroOps
 
-가상 드론 10대의 위치·자세·기체 상태를 실시간 수집하여 임무 상태, 이상 이벤트,
-운용 이력을 관리하는 관제 플랫폼. 전체 기체는 2D 지도 심벌로, 선택 기체는 3D
-모델로 표현한다. 자세한 내용은 [`docs/planning/00_종합_기획서.md`](docs/planning/00_종합_기획서.md) 참고.
+가상 드론 10대의 위치·자세·기체 상태를 실시간 수집하고, 운영 명령을 별도 신뢰 채널로
+전달해 승인·취소·타임아웃까지 추적하는 관제 플랫폼. 전체 기체는 2D 지도 심벌로, 선택
+기체는 3D 모델로 표현한다. 패킷 손실·지연·역순·통신 단절을 재현하고, 기체별 인증서 및
+배포 버전과 운용 로그를 연결한다. 자세한 내용은
+[`docs/planning/00_종합_기획서.md`](docs/planning/00_종합_기획서.md) 참고.
 
-> 현재 상태: **2단계 — 데이터 계약·시뮬레이터 구현 완료.** `TelemetryFrame` 계약
-> (백엔드/시뮬레이터 양쪽 검증), 원형·직선·경유지 비행 시나리오, seed 기반 재현
-> 가능한 10대 생성기, 7종 장애 주입기를 갖췄다. 실제 수집 API(`POST /telemetry`)는
-> 3단계에서 구현되므로 현재 시뮬레이터는 `--sink stdout`으로 독립 검증한다. 진행
-> 상황은 [`docs/dev_history/`](docs/dev_history/), 전체 계획은
+> 현재 상태: **4단계 — 2D 실시간 관제·재동기화 구현 완료.** `/ws/operations`
+> WebSocket으로 전체 기체 최신 상태를 실시간 표시하고(방향 아이콘·상태색·이동 경로),
+> 연결이 끊기면 지수 백오프로 재연결해 새 스냅샷으로 복구한다. `POST /devices/{id}/sync`
+> 로 기체가 재연결 시 손실 구간(sequence gap)·미종결 명령을 서버와 대조한다. 3단계에서
+> Command/Telemetry 채널 분리(Redis ACL)와 idempotency key 기반 명령 생성까지 갖췄다.
+> 진행 상황은 [`docs/dev_history/`](docs/dev_history/), 전체 계획은
 > [`docs/roadmap/00_20일_개발로드맵.md`](docs/roadmap/00_20일_개발로드맵.md) 참고.
 
 ## 구조
@@ -54,9 +57,9 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
 - Web: http://localhost:5173 (`npm run dev`로 직접 실행 시) 또는 compose의 5173 포트
 - Grafana: http://localhost:3000, Prometheus: http://localhost:9090
 
-시뮬레이터는 기본적으로 실행되지 않는다(`profiles: with-simulator`). 실제 비행
-시나리오·장애 주입 로직은 2단계에서 구현되었지만, 수집 API(`POST /telemetry`)가
-아직 없는 3단계 이전에는 전송이 실패 로그만 남기고 넘어간다:
+시뮬레이터는 기본적으로 실행되지 않는다(`profiles: with-simulator`). 3단계부터 실제
+수집 API(`POST /telemetry`)가 동작하므로, 아래처럼 활성화하면 텔레메트리가 실제로
+DB에 쌓인다:
 
 ```bash
 docker compose -f infra/docker-compose.yml --profile with-simulator up

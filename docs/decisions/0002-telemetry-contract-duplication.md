@@ -5,7 +5,7 @@
 
 ## 배경
 
-2단계(`docs/roadmap/02_단계_데이터계약_시뮬레이터_Day0304.md`) 착수 시점에
+2단계(`docs/roadmap/02_단계_데이터계약_시뮬레이터_Day03-04.md`) 착수 시점에
 `simulator/simulator/contracts/__init__.py`에 "backend 스키마를 직접 임포트할지,
 JSON Schema를 공유할지 2단계에서 확정한다"는 스텁 코멘트가 남아 있었다. 이를 확정한다.
 
@@ -36,5 +36,5 @@ JSON Schema를 공유할지 2단계에서 확정한다"는 스텁 코멘트가 �
 
 ## 관련 문서
 
-- [[02_단계_데이터계약_시뮬레이터_Day0304]]
+- [[02_단계_데이터계약_시뮬레이터_Day03-04]]
 - `docs/api/telemetry_frame_dictionary.md`

@@ -27,6 +27,11 @@ class TelemetryFrame(BaseModel):
     received_at: datetime | None = None
     sequence_no: int = Field(ge=0)
 
+    # 추적성 필드. 7단계(이벤트 재생·배포 추적)에서 실제 값이 채워지기 전까지는 선택값.
+    operation_session_id: str | None = None
+    deployment_id: str | None = None
+    correlation_id: str | None = None
+
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
     altitude_m: float = Field(ge=-500, le=10000)

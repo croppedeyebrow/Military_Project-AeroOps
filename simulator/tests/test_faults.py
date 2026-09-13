@@ -8,6 +8,9 @@ from simulator.contracts.telemetry import TelemetryFrame
 from simulator.faults import (
     FAULT_TYPES,
     apply_faults,
+    apply_packet_loss,
+    apply_reorder_window,
+    compute_sequence_gaps,
     inject_battery_drop,
     inject_delay,
     inject_disconnect,
@@ -118,3 +121,71 @@ def test_apply_faults_chains_multiple_types():
 def test_apply_faults_rejects_unknown_type():
     with pytest.raises(ValueError):
         apply_faults(_clean_frames(), ["not_a_real_fault"], _rng())
+
+
+def test_apply_faults_passes_per_type_kwargs():
+    # min_shift=25로 지정하면 30개 프레임 중 뒤로 25칸 이상 밀릴 자리가 거의 없다.
+    result = apply_faults(_clean_frames(), ["delay"], _rng(), fault_kwargs={"delay": {"min_shift": 25}})
+    assert len(result) == 30  # delay는 개수를 바꾸지 않는다
+
+
+def test_apply_packet_loss_drops_roughly_expected_fraction():
+    clean = _clean_frames(count=1000)
+    result = apply_packet_loss(clean, _rng(), loss_rate=0.3)
+    assert len(result) < len(clean)
+    # 큰 표본에서는 30% ± 여유 범위 안에 들어야 한다(엄격한 통계 검정은 아님).
+    dropped_fraction = 1 - len(result) / len(clean)
+    assert 0.2 < dropped_fraction < 0.4
+
+
+def test_apply_packet_loss_zero_rate_is_noop():
+    clean = _clean_frames()
+    assert apply_packet_loss(clean, _rng(), loss_rate=0.0) == clean
+
+
+def test_apply_packet_loss_rejects_out_of_range_rate():
+    with pytest.raises(ValueError):
+        apply_packet_loss(_clean_frames(), _rng(), loss_rate=1.5)
+
+
+def test_apply_reorder_window_keeps_same_frames_shuffled_within_window():
+    clean = _clean_frames(count=12)
+    result = apply_reorder_window(clean, _rng(), window_size=4)
+    assert len(result) == len(clean)
+    assert sorted(f.sequence_no for f in result) == sorted(f.sequence_no for f in clean)
+    # 각 4개짜리 창 내부에서만 섞였는지 확인(창을 넘어가는 이동은 없어야 한다).
+    for w in range(0, 12, 4):
+        window_before = {f.sequence_no for f in clean[w : w + 4]}
+        window_after = {f.sequence_no for f in result[w : w + 4]}
+        assert window_before == window_after
+
+
+def test_apply_reorder_window_size_one_is_noop():
+    clean = _clean_frames()
+    assert apply_reorder_window(clean, _rng(), window_size=1) == clean
+
+
+def test_compute_sequence_gaps_detects_missing_numbers():
+    clean = _clean_frames(count=10)
+    with_gap = [f for f in clean if f.sequence_no not in (3, 4, 7)]
+    assert compute_sequence_gaps(with_gap) == [3, 4, 7]
+
+
+def test_compute_sequence_gaps_empty_when_no_gap():
+    assert compute_sequence_gaps(_clean_frames(count=10)) == []
+
+
+def test_same_seed_and_profile_reproduce_same_sequence_gaps():
+    """2단계 보정 완료 기준: 동일 seed + 동일 장애 profile → 동일 sequence gap."""
+
+    def _gaps_for_seed(seed: int) -> list[int]:
+        frames = apply_packet_loss(_clean_frames(count=200), _rng(seed), loss_rate=0.2)
+        return compute_sequence_gaps(frames)
+
+    gaps_a = _gaps_for_seed(42)
+    gaps_b = _gaps_for_seed(42)
+    gaps_c = _gaps_for_seed(43)
+
+    assert gaps_a == gaps_b
+    assert gaps_a  # 손실이 실제로 있었어야 의미있는 비교다
+    assert gaps_a != gaps_c

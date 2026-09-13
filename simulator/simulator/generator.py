@@ -1,6 +1,6 @@
 """드론 편대 생성기: seed 기반으로 재현 가능한 정상 TelemetryFrame 시퀀스를 만든다.
 
-`docs/roadmap/02_단계_데이터계약_시뮬레이터_Day0304.md` 완료 기준:
+`docs/roadmap/02_단계_데이터계약_시뮬레이터_Day03-04.md` 완료 기준:
 "동일 seed 실행 결과가 일치한다" — 이를 위해 전역 seed에서
 `numpy.random.SeedSequence.spawn`으로 기체별 독립 RNG 스트림을 파생한다
 (기체 수·순서가 같으면 항상 같은 스트림을 얻는다).

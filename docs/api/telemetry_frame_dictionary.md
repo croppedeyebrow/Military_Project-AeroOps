@@ -2,6 +2,8 @@
 
 `backend/app/schemas/telemetry.py`와 `simulator/simulator/contracts/telemetry.py`가 구현하는
 공유 계약. 두 구현을 동기화하는 방법은 [ADR 0002](../decisions/0002-telemetry-contract-duplication.md) 참고.
+Command 채널의 계약은 별도 문서 [`command_envelope_dictionary.md`](command_envelope_dictionary.md) 참고 —
+두 계약은 필드 집합이 겹치지 않아 서로의 데이터를 검증하면 항상 실패한다.
 
 ## 공통 규칙
 
@@ -31,6 +33,9 @@
 | `battery_pct` | float | [0, 100] | ✓ | 배터리 잔량(%). |
 | `rssi_dbm` | float \| null | [-130, 0] |  | 통신 신호 강도(dBm). |
 | `flight_mode` | enum \| null | `MANUAL`\|`AUTO`\|`GUIDED`\|`LOITER`\|`RTL`\|`LANDED` |  | 비행 모드. |
+| `operation_session_id` | str \| null | - |  | 이 프레임이 속한 운용 세션(7단계 이벤트 재생·배포 추적에서 값이 채워짐). |
+| `deployment_id` | str \| null | - |  | 이 프레임을 생성/수신한 배포 버전. |
+| `correlation_id` | str \| null | - |  | 여러 시스템에 걸친 요청/이벤트를 하나로 묶는 추적 ID. |
 
 ## heading vs yaw
 

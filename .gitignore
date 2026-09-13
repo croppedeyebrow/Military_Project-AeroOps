@@ -12,6 +12,7 @@ node_modules/
 frontend/dist/
 frontend/.vite/
 frontend/coverage/
+*.tsbuildinfo
 *.local
 
 # --- Python / backend & simulator ---

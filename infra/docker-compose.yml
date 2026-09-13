@@ -31,6 +31,9 @@ services:
   api:
     build:
       context: ../backend
+      args:
+        GIT_SHA: ${GIT_SHA:-local-dev}
+        IMAGE_TAG: ${IMAGE_TAG:-local-dev}
     env_file:
       - ../backend/.env
     environment:

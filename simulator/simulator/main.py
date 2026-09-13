@@ -1,6 +1,6 @@
 """AeroOps 시뮬레이터 진입점.
 
-2단계(`docs/roadmap/02_단계_데이터계약_시뮬레이터_Day0304.md`)의 원형·직선·경유지
+2단계(`docs/roadmap/02_단계_데이터계약_시뮬레이터_Day03-04.md`)의 원형·직선·경유지
 시나리오, 10대 × 1Hz 정상 데이터 생성, 장애 주입, seed 재현성을 구현한다.
 """
 from __future__ import annotations
@@ -11,7 +11,7 @@ from itertools import zip_longest
 
 import typer
 
-from simulator.faults import FAULT_TYPES, apply_faults
+from simulator.faults import FAULT_TYPES, apply_faults, apply_packet_loss, apply_reorder_window
 from simulator.generator import build_fleet, generate_frames, scenario_run_id
 from simulator.sinks import HttpSink, Sink, StdoutSink
 
@@ -51,6 +51,18 @@ def run(
     faults: str = typer.Option(
         "", help=f"쉼표로 구분된 장애 유형(비우면 정상 데이터만). 지원: {', '.join(FAULT_TYPES)}"
     ),
+    delay_min_shift: int = typer.Option(5, help="delay 장애: 최소 지연 칸수"),
+    delay_max_shift: int | None = typer.Option(None, help="delay 장애: 최대 지연 칸수(비우면 무제한)"),
+    disconnect_min_duration: int = typer.Option(5, help="disconnect 장애: 최소 단절 구간 길이(틱)"),
+    disconnect_max_duration: int = typer.Option(15, help="disconnect 장애: 최대 단절 구간 길이(틱)"),
+    gps_jump_min_m: float = typer.Option(5000.0, help="gps_jump 장애: 최소 점프 거리(m)"),
+    battery_drop_pct: float = typer.Option(25.0, help="battery_drop 장애: 급락 폭(%p)"),
+    loss_rate: float = typer.Option(
+        0.0, min=0.0, max=1.0, help="프레임별 독립 손실 확률(0~1). --faults와 별개로 적용된다"
+    ),
+    reorder_window: int = typer.Option(
+        0, min=0, help="이 크기의 구간 단위로 순서를 섞는다(0 또는 1이면 미적용)"
+    ),
     sink: str = typer.Option("http", envvar="SIMULATOR_SINK", help="전송 목적지 (http|stdout)"),
     ingest_url: str = typer.Option(
         "http://localhost:8000/telemetry", envvar="INGEST_URL", help="수집 API 엔드포인트"
@@ -61,10 +73,17 @@ def run(
 ) -> None:
     """시뮬레이터를 실행해 편대 텔레메트리를 생성·전송한다."""
     fault_types = _parse_faults(faults)
+    fault_kwargs = {
+        "delay": {"min_shift": delay_min_shift, "max_shift": delay_max_shift},
+        "disconnect": {"min_gap": disconnect_min_duration, "max_gap": disconnect_max_duration},
+        "gps_jump": {"min_jump_m": gps_jump_min_m},
+        "battery_drop": {"drop_pct": battery_drop_pct},
+    }
     run_id = scenario_run_id(scenario, seed)
     typer.echo(
         f"[simulator] run_id={run_id} num_drones={num_drones} frequency_hz={frequency_hz} "
-        f"duration_sec={duration_sec} faults={fault_types or '(none)'} sink={sink}"
+        f"duration_sec={duration_sec} faults={fault_types or '(none)'} loss_rate={loss_rate} "
+        f"reorder_window={reorder_window} sink={sink}"
     )
 
     fleet = build_fleet(seed=seed, num_drones=num_drones, scenario_name=scenario)
@@ -76,7 +95,11 @@ def run(
             drone, start_time=start_time, frequency_hz=frequency_hz, duration_s=duration_sec
         )
         if fault_types:
-            frames = apply_faults(frames, fault_types, drone.rng)
+            frames = apply_faults(frames, fault_types, drone.rng, fault_kwargs=fault_kwargs)
+        if loss_rate > 0.0:
+            frames = apply_packet_loss(frames, drone.rng, loss_rate=loss_rate)
+        if reorder_window > 1:
+            frames = apply_reorder_window(frames, drone.rng, window_size=reorder_window)
         per_drone_streams.append(frames)
 
     sink_impl = _build_sink(sink, ingest_url)

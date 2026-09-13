@@ -1,7 +1,7 @@
 """전송 계층: 생성된 TelemetryFrame을 내보내는 목적지(Sink) 추상화.
 
 3단계에서 backend에 `POST /telemetry`가 생기기 전에도 시뮬레이터를 독립적으로
-검증할 수 있도록 sink를 분리한다(`docs/roadmap/02_단계_데이터계약_시뮬레이터_Day0304.md`).
+검증할 수 있도록 sink를 분리한다(`docs/roadmap/02_단계_데이터계약_시뮬레이터_Day03-04.md`).
 """
 from __future__ import annotations
 

@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.command.models import Command
+from app.modules.command.state_machine import TERMINAL_STATUSES as TERMINAL_COMMAND_STATUSES
 from app.modules.sync.models import SyncSession
 from app.modules.sync.schemas import MAX_LISTED_MISSING_SEQUENCE_NUMBERS, SyncRequest
 from app.modules.telemetry.models import AssetLatestState
@@ -21,10 +22,6 @@ from app.modules.telemetry.repository import (
     get_latest_state,
     get_max_sequence_no,
 )
-
-# 아직 상태 머신(5단계)이 없어 모든 명령이 DRAFT다 — 그래도 "터미널 상태 목록"은 미리
-# 정의해둔다. 5단계에서 실제로 이 상태들로 전이하기 시작하면 이 로직을 고칠 필요가 없다.
-TERMINAL_COMMAND_STATUSES = {"SUCCEEDED", "FAILED", "TIMED_OUT", "CANCELLED"}
 
 
 @dataclass(frozen=True)

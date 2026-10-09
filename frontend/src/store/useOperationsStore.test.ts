@@ -32,6 +32,7 @@ function makeFrame(overrides: Partial<TelemetryFrame> = {}): TelemetryFrame {
 beforeEach(() => {
   useOperationsStore.setState({
     assetsById: {},
+    alertsById: {},
     connectionStatus: "connecting",
     lastReconnectedAt: null,
     selectedAssetId: null,
@@ -40,7 +41,9 @@ beforeEach(() => {
 
 describe("useOperationsStore", () => {
   it("applySnapshot replaces the whole asset map keyed by asset_id", () => {
-    useOperationsStore.getState().applySnapshot([makeFrame({ asset_id: "a" }), makeFrame({ asset_id: "b" })]);
+    useOperationsStore
+      .getState()
+      .applySnapshot([makeFrame({ asset_id: "a" }), makeFrame({ asset_id: "b" })], []);
     const { assetsById } = useOperationsStore.getState();
     expect(Object.keys(assetsById).sort()).toEqual(["a", "b"]);
   });

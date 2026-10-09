@@ -5,7 +5,6 @@
 (`docs/planning/02_백엔드_아키텍처.md`: "오래 걸리는 분석을 요청 경로에서 실행하지 않는다").
 """
 import asyncio
-import contextlib
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -23,9 +22,13 @@ from app.core.metrics import telemetry_rejected_total
 from app.core.redis import get_redis
 from app.core.redis_acl import ensure_channel_acl_users
 from app.db.base import SessionLocal
+from app.modules.alert.router import router as alert_router
+from app.modules.audit.router import router as audit_router
 from app.modules.command.router import router as command_router
+from app.modules.command.timeout_worker import run_timeout_worker
 from app.modules.deployment.router import router as deployment_router
 from app.modules.ingestion.router import router as ingestion_router
+from app.modules.mission.router import router as mission_router
 from app.modules.realtime.router import router as realtime_router
 from app.modules.sync.router import router as sync_router
 from app.modules.telemetry.consumer import run_consumer_loop
@@ -49,12 +52,13 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         logger.warning("Redis ACL 채널 사용자 등록 실패 — 채널 분리 없이 계속 진행", exc_info=True)
 
     consumer_task = asyncio.create_task(run_consumer_loop())
+    timeout_worker_task = asyncio.create_task(run_timeout_worker())
     try:
         yield
     finally:
-        consumer_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await consumer_task
+        for task in (consumer_task, timeout_worker_task):
+            task.cancel()
+        await asyncio.gather(consumer_task, timeout_worker_task, return_exceptions=True)
 
 
 app = FastAPI(
@@ -129,15 +133,12 @@ app.include_router(deployment_router)
 app.include_router(command_router)
 app.include_router(realtime_router)
 app.include_router(sync_router)
+app.include_router(mission_router)
+app.include_router(alert_router)
+app.include_router(audit_router)
 
 # TODO: 아래 라우터들은 로드맵 단계에 맞춰 순차적으로 등록한다.
-# from app.modules.mission.router import router as mission_router
-# from app.modules.alert.router import router as alert_router
 # from app.modules.identity.router import router as identity_router
-# from app.modules.audit.router import router as audit_router
 # from app.modules.device_identity.router import router as device_identity_router
-# app.include_router(mission_router)
-# app.include_router(alert_router)
 # app.include_router(identity_router)
-# app.include_router(audit_router)
 # app.include_router(device_identity_router)

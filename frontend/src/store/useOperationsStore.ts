@@ -1,8 +1,9 @@
 import { create } from "zustand";
+import type { Alert } from "../types/alert";
 import type { TelemetryFrame } from "../types/telemetry";
 
 /**
- * 실시간 최신 프레임 + 화면 선택 상태 (Zustand).
+ * 실시간 최신 프레임·경보 + 화면 선택 상태 (Zustand).
  *
  * `docs/planning/01_프론트엔드_아키텍처.md`의 상태 관리 규칙: 서버 데이터는 TanStack
  * Query, 실시간 최신 프레임은 WebSocket 전용 store, 화면 선택/레이어는 Zustand가
@@ -17,13 +18,15 @@ export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "di
 
 interface OperationsState {
   assetsById: Record<string, TelemetryFrame>;
+  alertsById: Record<number, Alert>;
   connectionStatus: ConnectionStatus;
   /** 가장 최근 "재연결"(최초 연결이 아니라 끊겼다가 다시 붙은) 시각. `ResyncBanner`가 쓴다. */
   lastReconnectedAt: number | null;
   selectedAssetId: string | null;
 
-  applySnapshot: (assets: TelemetryFrame[]) => void;
+  applySnapshot: (assets: TelemetryFrame[], alerts: Alert[]) => void;
   applyUpdate: (asset: TelemetryFrame) => void;
+  applyAlert: (alert: Alert) => void;
   setConnectionStatus: (status: ConnectionStatus) => void;
   markReconnected: () => void;
   selectAsset: (assetId: string | null) => void;
@@ -31,13 +34,15 @@ interface OperationsState {
 
 export const useOperationsStore = create<OperationsState>((set) => ({
   assetsById: {},
+  alertsById: {},
   connectionStatus: "connecting",
   lastReconnectedAt: null,
   selectedAssetId: null,
 
-  applySnapshot: (assets) =>
+  applySnapshot: (assets, alerts) =>
     set(() => ({
       assetsById: Object.fromEntries(assets.map((asset) => [asset.asset_id, asset])),
+      alertsById: Object.fromEntries(alerts.map((alert) => [alert.id, alert])),
     })),
 
   applyUpdate: (asset) =>
@@ -50,6 +55,9 @@ export const useOperationsStore = create<OperationsState>((set) => ({
       }
       return { assetsById: { ...state.assetsById, [asset.asset_id]: asset } };
     }),
+
+  applyAlert: (alert) =>
+    set((state) => ({ alertsById: { ...state.alertsById, [alert.id]: alert } })),
 
   setConnectionStatus: (status) => set({ connectionStatus: status }),
   markReconnected: () => set({ lastReconnectedAt: Date.now() }),

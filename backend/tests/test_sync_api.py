@@ -6,6 +6,7 @@
 """
 import time
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
@@ -83,14 +84,17 @@ def test_sync_reports_pending_commands_for_asset(live_client: TestClient):
     asset_id = f"sync-{uuid.uuid4().hex[:8]}"
     _send_frames(live_client, asset_id, count=1)
 
+    now = datetime.now(timezone.utc)
     command = {
         "command_id": f"cmd-{uuid.uuid4().hex[:8]}",
         "idempotency_key": f"idem-{uuid.uuid4().hex[:8]}",
         "target_asset_id": asset_id,
         "command_type": "RTL",
         "requested_by": "operator-1",
-        "issued_at": "2026-01-01T00:00:00Z",
-        "expires_at": "2026-01-01T00:05:00Z",
+        "issued_at": now.isoformat(),
+        # 미래 시각으로 둔다 — 과거로 두면 백그라운드 timeout worker가 몇 초 안에
+        # TIMED_OUT으로 스윕해버려 "미종결 명령" 검증이 타이밍에 따라 흔들린다.
+        "expires_at": (now + timedelta(minutes=5)).isoformat(),
     }
     create_response = live_client.post("/commands", json=command)
     assert create_response.status_code == 201

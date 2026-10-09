@@ -1,8 +1,10 @@
-"""Command 생성 로직: idempotency key 기반 최소 골격.
+"""Command 생성·상태 전이 로직.
 
 `docs/planning/02_백엔드_아키텍처.md` "명령 처리 규칙": "상태 전이는 DB 트랜잭션과 outbox
-event로 함께 기록한다." 3단계 보정에서는 `CREATED` 이벤트 하나만 기록한다 — 승인·전달·
-ACK·실행·취소·timeout 상태 전이는 5단계에서 완성한다.
+event로 함께 기록한다." 상태 그래프 자체는 `state_machine.py`에 있다.
+
+`POST /commands`(생성)는 이미 승인을 구하는 완전한 요청이므로 `DRAFT`를 건너뛰고 곧바로
+`PENDING_APPROVAL`로 생성한다(`state_machine.py` docstring 참고).
 """
 from __future__ import annotations
 
@@ -12,13 +14,26 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.modules.command.models import Command, CommandEvent
+from app.modules.command.state_machine import CANCELLABLE_STATUSES, assert_transition_allowed
 from app.modules.telemetry.repository import ensure_asset_exists
 from app.schemas.command import CommandEnvelope
+
+
+class CommandNotFound(Exception):
+    pass
+
+
+class SelfApprovalNotAllowed(Exception):
+    """요청자와 승인자를 분리한다(안전한 명령 UX)."""
+
+
+class CommandNotCancellable(Exception):
+    pass
 
 
 def hash_payload(payload: dict[str, Any]) -> str:
@@ -82,7 +97,7 @@ def create_command_idempotent(db: Session, envelope: CommandEnvelope) -> Command
         expires_at=envelope.expires_at,
         expected_asset_state_version=envelope.expected_asset_state_version,
         deployment_id=envelope.deployment_id,
-        status="DRAFT",
+        status="PENDING_APPROVAL",
     )
     db.add(command)
     try:
@@ -107,3 +122,129 @@ def create_command_idempotent(db: Session, envelope: CommandEnvelope) -> Command
     db.commit()
     db.refresh(command)
     return CommandCreationResult(command=command, is_new=True)
+
+
+def get_command(db: Session, command_id: str) -> Command:
+    command = db.get(Command, command_id)
+    if command is None:
+        raise CommandNotFound(f"명령 '{command_id}'을 찾을 수 없다")
+    return command
+
+
+def get_command_events(db: Session, command_id: str) -> list[CommandEvent]:
+    stmt = (
+        select(CommandEvent)
+        .where(CommandEvent.command_id == command_id)
+        .order_by(CommandEvent.event_no.asc())
+    )
+    return list(db.execute(stmt).scalars().all())
+
+
+def list_commands(
+    db: Session, *, status: str | None = None, target_asset_id: str | None = None
+) -> list[Command]:
+    stmt = select(Command)
+    if status is not None:
+        stmt = stmt.where(Command.status == status)
+    if target_asset_id is not None:
+        stmt = stmt.where(Command.target_asset_id == target_asset_id)
+    stmt = stmt.order_by(Command.created_at.desc())
+    return list(db.execute(stmt).scalars().all())
+
+
+def _next_event_no(db: Session, command_id: str) -> int:
+    current_max = db.execute(
+        select(func.max(CommandEvent.event_no)).where(CommandEvent.command_id == command_id)
+    ).scalar_one_or_none()
+    return (current_max or 0) + 1
+
+
+def _transition(
+    db: Session,
+    command: Command,
+    target: str,
+    *,
+    actor: str | None,
+    detail: dict[str, Any] | None = None,
+) -> Command:
+    """상태를 바꾸고 같은 이벤트를 `command_events`에 남긴다. `event_type`은 목표 상태와
+    같은 이름을 쓴다(예: `APPROVED` 상태로 가면 `APPROVED` 이벤트) — 이력 자체가 상태
+    변화 로그이기 때문이다.
+    """
+    assert_transition_allowed(command.status, target)
+    command.status = target
+    db.add(
+        CommandEvent(
+            command_id=command.id,
+            event_no=_next_event_no(db, command.id),
+            event_type=target,
+            occurred_at=datetime.now(timezone.utc),
+            actor=actor,
+            detail=detail,
+        )
+    )
+    db.commit()
+    db.refresh(command)
+    return command
+
+
+def approve_and_dispatch(db: Session, command_id: str, approved_by: str) -> Command:
+    """승인하고, 아직 만료 전이면 곧바로 전달(DISPATCHED)까지 진행한다.
+
+    이 프로젝트에는 사람이 개입하는 별도 "전달" 단계가 없다 — 승인되면 자동으로
+    전달된다. 승인 시점에 이미 만료됐다면 전달하지 않고 바로 TIMED_OUT으로 보낸다
+    ("만료된 명령은 dispatch하지 않는다").
+    """
+    command = get_command(db, command_id)
+    if command.requested_by == approved_by:
+        raise SelfApprovalNotAllowed("요청자 본인은 자신의 명령을 승인할 수 없다")
+
+    now = datetime.now(timezone.utc)
+    if now > command.expires_at:
+        return _transition(
+            db, command, "TIMED_OUT", actor="system", detail={"reason": "expired_before_approval"}
+        )
+
+    command.approved_by = approved_by
+    command = _transition(db, command, "APPROVED", actor=approved_by)
+
+    now = datetime.now(timezone.utc)
+    if now > command.expires_at:
+        return _transition(
+            db, command, "TIMED_OUT", actor="system", detail={"reason": "expired_before_dispatch"}
+        )
+    return _transition(db, command, "DISPATCHED", actor="system")
+
+
+def cancel_command(db: Session, command_id: str, cancelled_by: str, reason: str | None) -> Command:
+    command = get_command(db, command_id)
+    if command.status not in CANCELLABLE_STATUSES:
+        raise CommandNotCancellable(f"'{command.status}' 상태의 명령은 취소할 수 없다")
+    detail = {"reason": reason} if reason else None
+    return _transition(db, command, "CANCELLED", actor=cancelled_by, detail=detail)
+
+
+def acknowledge_command(db: Session, command_id: str) -> Command:
+    """기체가 명령 수신을 ACK한다(DISPATCHED → ACKNOWLEDGED)."""
+    command = get_command(db, command_id)
+    return _transition(db, command, "ACKNOWLEDGED", actor="device")
+
+
+def start_executing_command(db: Session, command_id: str) -> Command:
+    command = get_command(db, command_id)
+    return _transition(db, command, "EXECUTING", actor="device")
+
+
+def report_command_result(
+    db: Session, command_id: str, outcome: str, detail: dict[str, Any] | None = None
+) -> Command:
+    """기체가 실행 결과를 보고한다. `outcome`은 `SUCCEEDED` 또는 `FAILED`."""
+    command = get_command(db, command_id)
+    return _transition(db, command, outcome, actor="device", detail=detail)
+
+
+def force_timeout(db: Session, command: Command, reason: str = "expired") -> Command:
+    """timeout worker가 기한을 넘긴 비종결 명령을 강제로 TIMED_OUT 처리할 때 쓴다."""
+    was_status = command.status
+    detail = {"reason": reason, "was_status": was_status}
+    return _transition(db, command, "TIMED_OUT", actor="system", detail=detail)

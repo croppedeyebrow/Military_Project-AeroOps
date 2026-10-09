@@ -1,3 +1,5 @@
+import type { Alert } from "./alert";
+
 /**
  * `backend/app/schemas/telemetry.py`의 `TelemetryFrame`과 1:1 대응.
  * 필드명은 서버가 실제로 보내는 JSON(snake_case) 그대로 쓴다 — 변환 계층을 따로 두면
@@ -31,10 +33,11 @@ export interface TelemetryFrame {
   flight_mode: string | null;
 }
 
-/** 서버 WebSocket(`/ws/operations`)이 보내는 메시지 두 종류. */
+/** 서버 WebSocket(`/ws/operations`)이 보내는 메시지 종류(`app/modules/realtime/router.py`). */
 export type OperationsMessage =
-  | { type: "snapshot"; assets: TelemetryFrame[] }
-  | { type: "update"; asset: TelemetryFrame };
+  | { type: "snapshot"; assets: TelemetryFrame[]; alerts: Alert[] }
+  | { type: "update"; asset: TelemetryFrame }
+  | { type: "alert"; alert: Alert };
 
 /** 프론트에서만 쓰는 파생 상태 — 마지막 수신 후 얼마나 지났는지에 따른 신선도. */
 export type AssetFreshness = "live" | "stale" | "disconnected";

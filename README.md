@@ -6,12 +6,17 @@
 배포 버전과 운용 로그를 연결한다. 자세한 내용은
 [`docs/planning/00_종합_기획서.md`](docs/planning/00_종합_기획서.md) 참고.
 
-> 현재 상태: **4단계 — 2D 실시간 관제·재동기화 구현 완료.** `/ws/operations`
-> WebSocket으로 전체 기체 최신 상태를 실시간 표시하고(방향 아이콘·상태색·이동 경로),
-> 연결이 끊기면 지수 백오프로 재연결해 새 스냅샷으로 복구한다. `POST /devices/{id}/sync`
-> 로 기체가 재연결 시 손실 구간(sequence gap)·미종결 명령을 서버와 대조한다. 3단계에서
-> Command/Telemetry 채널 분리(Redis ACL)와 idempotency key 기반 명령 생성까지 갖췄다.
-> 진행 상황은 [`docs/dev_history/`](docs/dev_history/), 전체 계획은
+> 현재 상태: **6단계 — 선택 기체 3D 자세 뷰어 구현 완료(모델은 placeholder).**
+> 선택한 기체 하나만 Three.js로 표현하고 roll·pitch·yaw를 실시간 쿼터니언으로
+> 반영하며(좌표축 규칙: [`docs/decisions/0003-vehicle-3d-axis-convention.md`](docs/decisions/0003-vehicle-3d-axis-convention.md)),
+> 진행방향·기수방향 보조선과 통신 신선도·최근 연관 명령을 함께 표시한다. 실제 GLB
+> 드론 모델은 아직 적용하지 않았다(사용자 결정으로 추후 교체 예정) — 상세:
+> [`docs/dev_history/06_단계_3D상세뷰어.md`](docs/dev_history/06_단계_3D상세뷰어.md).
+> 5단계에서 임무·경보 관리와 명령 승인/취소/타임아웃 상태 머신(`PENDING_APPROVAL →
+> APPROVED → DISPATCHED → ACKNOWLEDGED → EXECUTING →
+> SUCCEEDED/FAILED/TIMED_OUT/CANCELLED`), 4단계에서 `/ws/operations` 실시간 2D
+> 관제·재동기화, 3단계에서 Command/Telemetry 채널 분리(Redis ACL)를 갖췄다. 진행
+> 상황은 [`docs/dev_history/`](docs/dev_history/), 전체 계획은
 > [`docs/roadmap/00_20일_개발로드맵.md`](docs/roadmap/00_20일_개발로드맵.md) 참고.
 
 ## 구조

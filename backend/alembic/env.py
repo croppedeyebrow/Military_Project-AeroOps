@@ -17,8 +17,11 @@ from app.core.config import get_settings  # noqa: E402
 from app.db.base import Base  # noqa: E402
 
 # 모델을 import해야 Base.metadata에 테이블이 등록된다.
+from app.modules.alert import models as alert_models  # noqa: E402, F401
+from app.modules.audit import models as audit_models  # noqa: E402, F401
 from app.modules.command import models as command_models  # noqa: E402, F401
 from app.modules.deployment import models as deployment_models  # noqa: E402, F401
+from app.modules.mission import models as mission_models  # noqa: E402, F401
 from app.modules.sync import models as sync_models  # noqa: E402, F401
 from app.modules.telemetry import models as telemetry_models  # noqa: E402, F401
 

@@ -23,6 +23,8 @@ from app.core.metrics import (
 )
 from app.core.redis import get_telemetry_redis
 from app.db.base import SessionLocal
+from app.modules.alert.repository import evaluate_and_raise_alerts
+from app.modules.alert.schemas import AlertOut
 from app.modules.ingestion.streams import CONSUMER_GROUP, CONSUMER_NAME, TELEMETRY_STREAM
 from app.modules.realtime.broadcaster import get_broadcaster
 from app.modules.telemetry.repository import get_latest_state, process_frame
@@ -45,21 +47,28 @@ async def ensure_consumer_group(redis_client: redis.Redis | None = None) -> None
             raise
 
 
-def _handle_message(payload: str) -> TelemetryFrame | None:
+def _handle_message(payload: str) -> list[dict]:
     """동기 DB 작업. 이벤트 루프를 막지 않도록 `asyncio.to_thread`에서 호출된다.
 
-    반환값은 실시간(WS) 브로드캐스트용 — 최신 상태가 실제로 갱신됐을 때만 완전한
-    `TelemetryFrame`을 돌려주고, 그 외(중복·역순 등)에는 `None`을 돌려준다. DB 세션이
-    닫히기 전에(ORM 인스턴스가 detach되기 전에) 값을 꺼내 pydantic 모델로 바꿔둔다.
+    반환값은 실시간(WS) 브로드캐스트로 그대로 발행할 메시지 목록(`{"type": ...}` dict)이다
+    — 최신 상태가 실제로 갱신됐을 때만(중복·역순이면 비어있음) "update" 메시지 하나와,
+    새로 발생한 경보 수만큼의 "alert" 메시지를 만든다. DB 세션이 닫히기 전에(ORM
+    인스턴스가 detach되기 전에) 전부 직렬화 가능한 형태로 꺼내둔다.
     """
     frame = TelemetryFrame.model_validate_json(payload)
-    broadcast_frame: TelemetryFrame | None = None
+    messages: list[dict] = []
     with SessionLocal() as db:
         is_new, latest_updated = process_frame(db, frame)
         if latest_updated:
             latest_record = get_latest_state(db, frame.asset_id)
             if latest_record is not None:
-                broadcast_frame = frame_from_record(latest_record)
+                latest_frame = frame_from_record(latest_record)
+                messages.append({"type": "update", "asset": latest_frame.model_dump(mode="json")})
+
+                new_alerts = evaluate_and_raise_alerts(db, latest_frame)
+                for alert in new_alerts:
+                    alert_out = AlertOut.model_validate(alert).model_dump(mode="json")
+                    messages.append({"type": "alert", "alert": alert_out})
 
     if frame.received_at is not None:
         latency_s = (datetime.now(timezone.utc) - frame.received_at).total_seconds()
@@ -67,7 +76,7 @@ def _handle_message(payload: str) -> TelemetryFrame | None:
     if not is_new:
         telemetry_duplicate_total.labels(asset_id=frame.asset_id).inc()
 
-    return broadcast_frame
+    return messages
 
 
 async def run_consumer_loop(redis_client: redis.Redis | None = None) -> None:
@@ -91,9 +100,10 @@ async def run_consumer_loop(redis_client: redis.Redis | None = None) -> None:
                 payload = fields.get("payload")
                 try:
                     if payload is not None:
-                        update = await asyncio.to_thread(_handle_message, payload)
-                        if update is not None:
-                            get_broadcaster().publish(update)
+                        messages = await asyncio.to_thread(_handle_message, payload)
+                        broadcaster = get_broadcaster()
+                        for message in messages:
+                            broadcaster.publish(message)
                 except Exception:  # noqa: BLE001 — 한 메시지 실패로 스트림 전체가 막히면 안 된다
                     telemetry_consumer_error_total.inc()
                     logger.exception("텔레메트리 메시지 처리 실패: message_id=%s", message_id)

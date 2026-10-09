@@ -20,6 +20,7 @@ const DEFAULT_WS_URL = "ws://localhost:8000/ws/operations";
 export function useTelemetryStream(): void {
   const applySnapshot = useOperationsStore((s) => s.applySnapshot);
   const applyUpdate = useOperationsStore((s) => s.applyUpdate);
+  const applyAlert = useOperationsStore((s) => s.applyAlert);
   const setConnectionStatus = useOperationsStore((s) => s.setConnectionStatus);
   const markReconnected = useOperationsStore((s) => s.markReconnected);
 
@@ -52,9 +53,11 @@ export function useTelemetryStream(): void {
       socket.onmessage = (event: MessageEvent<string>) => {
         const message = JSON.parse(event.data) as OperationsMessage;
         if (message.type === "snapshot") {
-          applySnapshot(message.assets);
-        } else {
+          applySnapshot(message.assets, message.alerts);
+        } else if (message.type === "update") {
           applyUpdate(message.asset);
+        } else {
+          applyAlert(message.alert);
         }
       };
 
@@ -79,5 +82,5 @@ export function useTelemetryStream(): void {
       if (timerRef.current) clearTimeout(timerRef.current);
       socketRef.current?.close();
     };
-  }, [applySnapshot, applyUpdate, setConnectionStatus, markReconnected]);
+  }, [applySnapshot, applyUpdate, applyAlert, setConnectionStatus, markReconnected]);
 }

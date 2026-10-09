@@ -30,6 +30,9 @@ export default [
       "react-hooks/exhaustive-deps": "warn",
       "no-unused-vars": "off", // TS 버전으로 대체
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      // `no-undef`는 타입 전용 참조(DOM lib 전역 타입 등)를 오탐한다 — 실제 미정의
+      // 변수는 tsc(`npm run build`)가 이미 잡아준다. typescript-eslint 공식 권고대로 끈다.
+      "no-undef": "off",
     },
   },
 ];

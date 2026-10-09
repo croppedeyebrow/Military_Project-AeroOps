@@ -2,21 +2,25 @@
 
 실제 Postgres/Redis가 필요하다(없으면 스킵) — `POST /commands`가 DB에 커밋하고 Command
 Redis Stream에도 발행하기 때문이다.
+
+승인·취소·ACK 등 전체 수명주기 테스트는 `test_command_lifecycle.py` 참고.
 """
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
 
 def _envelope(**overrides) -> dict:
+    now = datetime.now(timezone.utc)
     base = {
         "command_id": f"cmd-{uuid.uuid4().hex[:8]}",
         "idempotency_key": f"idem-{uuid.uuid4().hex[:8]}",
         "target_asset_id": "drone-01",
         "command_type": "RTL",
         "requested_by": "operator-1",
-        "issued_at": "2026-01-01T00:00:00Z",
-        "expires_at": "2026-01-01T00:05:00Z",
+        "issued_at": now.isoformat(),
+        "expires_at": (now + timedelta(minutes=5)).isoformat(),
     }
     base.update(overrides)
     return base
@@ -26,7 +30,7 @@ def test_creates_command_with_201(live_client: TestClient):
     response = live_client.post("/commands", json=_envelope())
     assert response.status_code == 201
     body = response.json()
-    assert body["status"] == "DRAFT"
+    assert body["status"] == "PENDING_APPROVAL"  # 요청 자체가 이미 승인 대기 상태
     assert body["is_new"] is True
 
 

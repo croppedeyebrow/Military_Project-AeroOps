@@ -39,3 +39,8 @@ class TelemetryHistoryResponse(BaseModel):
     offset: int
     count: int
     items: list[TelemetryFrame]
+    # max_points가 요청되지 않으면 그냥 None/False로 둔다(기존 페이지네이션 응답과
+    # 완전히 같은 모양 — 하위 호환). 프론트가 "이 응답이 다운샘플된 것인지"를
+    # 명시적으로 알아야 차트 축에 "다운샘플됨" 표시를 할 수 있다.
+    max_points: int | None = None
+    downsampled: bool = False

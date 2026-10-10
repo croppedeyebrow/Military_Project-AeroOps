@@ -45,10 +45,27 @@ def get_asset_telemetry(
     end: datetime | None = Query(default=None, description="조회 종료(event_time, UTC) 포함"),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
+    max_points: int | None = Query(
+        default=None,
+        ge=10,
+        le=5000,
+        description=(
+            "지정하면 limit/offset 대신 구간 전체를 가져와 이 개수로 다운샘플한다"
+            "(재생 차트용 — `downsampling.py` 참고)."
+        ),
+    ),
     db: Session = Depends(get_db),
 ) -> TelemetryHistoryResponse:
-    records = get_telemetry_history(db, asset_id, start=start, end=end, limit=limit, offset=offset)
+    records = get_telemetry_history(
+        db, asset_id, start=start, end=end, limit=limit, offset=offset, max_points=max_points
+    )
     items = [frame_from_record(r) for r in records]
     return TelemetryHistoryResponse(
-        asset_id=asset_id, limit=limit, offset=offset, count=len(items), items=items
+        asset_id=asset_id,
+        limit=limit,
+        offset=offset,
+        count=len(items),
+        items=items,
+        max_points=max_points,
+        downsampled=max_points is not None,
     )

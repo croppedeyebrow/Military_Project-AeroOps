@@ -133,6 +133,35 @@ def test_history_query_paginates(live_client: TestClient):
     assert [item["sequence_no"] for item in page["items"]] == [1, 2]
 
 
+def test_history_query_downsamples_with_max_points(live_client: TestClient):
+    # 7단계 추가: max_points를 주면 limit/offset 대신 구간 전체를 가져와 다운샘플한다
+    # (`downsampling.py`) — 양 끝(첫/마지막 sequence_no)이 항상 포함되는지로 확인한다.
+    asset_id = f"test-{uuid.uuid4().hex[:8]}"
+    for seq in range(20):
+        live_client.post("/telemetry", json=_frame(asset_id, seq, f"2026-01-01T00:00:{seq:02d}Z"))
+    _wait_for_history_count(live_client, asset_id, 20)
+
+    page = _history(live_client, asset_id, max_points=10)
+    assert page["downsampled"] is True
+    assert page["count"] == 10
+    sequence_numbers = [item["sequence_no"] for item in page["items"]]
+    assert sequence_numbers[0] == 0
+    assert sequence_numbers[-1] == 19
+    assert sequence_numbers == sorted(sequence_numbers)  # 시간순 유지
+
+
+def test_history_query_without_max_points_is_unchanged(live_client: TestClient):
+    # 목적: max_points를 안 주면 기존 페이지네이션 동작·응답 모양이 그대로인지(하위 호환)
+    # 회귀 확인.
+    asset_id = f"test-{uuid.uuid4().hex[:8]}"
+    live_client.post("/telemetry", json=_frame(asset_id, 0, "2026-01-01T00:00:00Z"))
+    _wait_for_history_count(live_client, asset_id, 1)
+
+    page = _history(live_client, asset_id)
+    assert page["downsampled"] is False
+    assert page["max_points"] is None
+
+
 def test_invalid_frame_rejected_with_422(live_client: TestClient):
     asset_id = f"test-{uuid.uuid4().hex[:8]}"
     invalid = _frame(asset_id, 0, "2026-01-01T00:00:00Z", latitude=999.0)

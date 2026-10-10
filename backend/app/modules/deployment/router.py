@@ -8,6 +8,9 @@
 - `POST /operation-sessions` / `POST /operation-sessions/{id}/end` / `GET
   /operation-sessions/{id}`: 운용 구간 수명주기. 시작 시 `get_or_create_current_deployment`
   로 "지금 배포"를 찾아 고정한다(`repository.py` docstring 참고).
+- `GET /operation-sessions/{id}/replay`: 7단계 재생 엔진 1차 — 세션 메타데이터 +
+  정렬된 이벤트 목록(`repository.get_replay_session` docstring 참고). 왜 실제 Command
+  채널로 새지 않는지도 그 docstring에 근거를 남겼다(이 endpoint는 조회만 한다).
 
 `docs/planning/04_인프라_네트워크_클라우드.md`: "이미지 digest, Git commit SHA, migration·
 schema·rule 버전을 배포 메타데이터로 등록한다."
@@ -20,11 +23,13 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.base import get_db
 from app.modules.deployment.repository import (
+    EventLogOrder,
     OperationSessionNotFound,
     current_schema_version,
     end_operation_session,
     get_operation_session,
     get_or_create_current_deployment,
+    get_replay_session,
     list_deployments,
     list_event_log,
     start_operation_session,
@@ -33,6 +38,7 @@ from app.modules.deployment.schemas import (
     DeploymentOut,
     EventLogOut,
     OperationSessionOut,
+    ReplaySessionOut,
     StartOperationSessionRequest,
 )
 
@@ -94,18 +100,46 @@ def list_event_log_endpoint(
     source_channel: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
     until: datetime | None = Query(default=None),
+    order: EventLogOrder = Query(
+        default="event_time", description="event_time(발생 순서, 기본) | arrival(도착 순서)"
+    ),
     limit: int = Query(default=500, le=2000),
     db: Session = Depends(get_db),
 ) -> list[EventLogOut]:
-    """정규화 이벤트 조회. 지금은 재생 엔진이 없어 "최근에 뭐가 기록됐는지" 확인용
-    (다음 작은 단위에서 이 endpoint 위에 실제 재생 엔진을 쌓는다 — 한 번에 만들지 않고
-    먼저 "조회가 되는" 뼈대부터 검증한다)."""
+    """정규화 이벤트 조회(채널·세션을 가로지르는 범용 조회). 세션 단위 재생은
+    `GET /operation-sessions/{id}/replay`를 쓴다 — 이 endpoint는 디버깅·채널별 확인처럼
+    "특정 세션에 묶이지 않는" 조회에 쓴다."""
     entries = list_event_log(
         db,
         operation_session_id=operation_session_id,
         source_channel=source_channel,
         since=since,
         until=until,
+        order=order,
         limit=limit,
     )
     return [EventLogOut.model_validate(e) for e in entries]
+
+
+@router.get("/operation-sessions/{session_id}/replay", response_model=ReplaySessionOut)
+def get_replay_session_endpoint(
+    session_id: str,
+    since: datetime | None = Query(default=None),
+    until: datetime | None = Query(default=None),
+    order: EventLogOrder = Query(
+        default="event_time", description="event_time(발생 순서, 기본) | arrival(도착 순서)"
+    ),
+    limit: int = Query(default=2000, le=5000),
+    db: Session = Depends(get_db),
+) -> ReplaySessionOut:
+    try:
+        session, events = get_replay_session(
+            db, session_id, since=since, until=until, order=order, limit=limit
+        )
+    except OperationSessionNotFound:
+        raise HTTPException(status_code=404, detail="operation session not found") from None
+    return ReplaySessionOut(
+        session=OperationSessionOut.model_validate(session),
+        order=order,
+        events=[EventLogOut.model_validate(e) for e in events],
+    )

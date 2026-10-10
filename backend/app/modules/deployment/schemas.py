@@ -51,3 +51,13 @@ class EventLogOut(BaseModel):
     payload: dict | None
 
     model_config = {"from_attributes": True}
+
+
+class ReplaySessionOut(BaseModel):
+    """`GET /operation-sessions/{id}/replay` 응답 — 세션 메타데이터와 정렬된 이벤트를
+    한 번에 담아, 재생 화면이 "이 구간이 언제·어느 배포였는지"와 "무슨 일이 있었는지"를
+    한 번의 호출로 받을 수 있게 한다(`repository.get_replay_session` docstring 참고)."""
+
+    session: OperationSessionOut
+    order: str
+    events: list[EventLogOut]

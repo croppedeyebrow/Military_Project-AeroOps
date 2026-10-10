@@ -11,6 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -207,6 +208,9 @@ def append_event_log(
     return entry
 
 
+EventLogOrder = Literal["event_time", "arrival"]
+
+
 def list_event_log(
     db: Session,
     *,
@@ -214,20 +218,31 @@ def list_event_log(
     source_channel: str | None = None,
     since: datetime | None = None,
     until: datetime | None = None,
+    order: EventLogOrder = "event_time",
     limit: int = 500,
 ) -> list[EventLog]:
     """재생 엔진·디버깅용 조회. 정렬 기준이 재생의 핵심이라 명시적으로 고정한다.
 
-    목적/근거: `event_time, stream_sequence, id` 순으로 정렬한다 — "이벤트가 실제로
-    발생한 시간" 순이 1차 기준이고(재생의 목적 자체가 이 순서를 보여주는 것), 같은
-    `event_time`이면 `stream_sequence`로, 그래도 같으면 `id`(삽입 순서, 즉 도착 순서)로
-    동률을 깬다. 이렇게 하면 "이벤트 발생 순서로 재생"이 기본 동작이 된다 — "실제 도착
-    순서로 재생"이 필요해지면(V03/V04 보정 단계) `ORDER BY id`만 쓰는 별도 모드를
-    추가하면 된다(지금은 아직 그 모드를 요구하는 화면이 없어 만들지 않는다 — YAGNI).
+    목적/근거: `docs/planning/05_데이터엔지니어링_아키텍처.md` "실제 도착 순서와 이벤트
+    발생 순서를 모두 보존하여 지연·역순 현상을 재현한다"를 조회 단계에서 두 가지 정렬
+    모드로 구현한다.
+      - `order="event_time"`(기본값): `event_time, stream_sequence, id` 순. "그 일이
+        실제로 언제 일어났는지" 기준 — 지연·역순으로 도착한 이벤트도 원래 있어야 할
+        자리로 돌아간다. 재생 화면의 기본 모드는 이쪽이다(운영자가 "실제 상황이 어떤
+        순서로 벌어졌는지"를 보고 싶어하는 게 보통이다).
+      - `order="arrival"`: `id` 하나로만 정렬(append-only 자동증가라 삽입 순서 =
+        이 프로세스가 실제로 처리한 순서, `append_event_log` docstring 참고). "그때
+        시스템이 실제로 어떤 순서로 데이터를 받았는지"를 보여준다 — 예를 들어 역순
+        프레임이 섞여 들어온 상황 자체를 재현하고 싶을 때(장애 분석) 쓴다.
+    둘 다 같은 테이블·같은 행을 다른 순서로 보여줄 뿐이라 별도 테이블/뷰 없이 `ORDER BY`
+    절만 바꾸면 된다 — 데이터는 하나, 해석(재생 모드)만 두 가지.
     """
-    stmt = select(EventLog).order_by(
-        EventLog.event_time, EventLog.stream_sequence, EventLog.id
+    order_by = (
+        (EventLog.id,)
+        if order == "arrival"
+        else (EventLog.event_time, EventLog.stream_sequence, EventLog.id)
     )
+    stmt = select(EventLog).order_by(*order_by)
     if operation_session_id is not None:
         stmt = stmt.where(EventLog.operation_session_id == operation_session_id)
     if source_channel is not None:
@@ -238,3 +253,40 @@ def list_event_log(
         stmt = stmt.where(EventLog.event_time <= until)
     stmt = stmt.limit(limit)
     return list(db.execute(stmt).scalars())
+
+
+def get_replay_session(
+    db: Session,
+    session_id: str,
+    *,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    order: EventLogOrder = "event_time",
+    limit: int = 2000,
+) -> tuple[OperationSession, list[EventLog]]:
+    """재생 엔진의 진입점 — "이 운용 세션을, 이 시간 범위만큼 재생해줘"에 대응하는 함수.
+
+    목적: 로드맵이 말하는 "`operation_session_id` + 시간 범위 입력 → 원래 event-time
+    순서 복원"을 그대로 구현한 것이다. `list_event_log`를 세션 하나로 좁혀 호출하는
+    것과 실질적으로 같지만, 재생 화면은 이벤트 목록만큼이나 "이 세션이 언제 시작/
+    종료했는지, 어느 배포였는지"도 같이 필요하다(화면 상단에 "재생 대상: 2026-10-10
+    09:00~09:20, deploy-abcd1234" 같은 걸 보여주려면) — 그래서 세션 메타데이터와
+    이벤트 목록을 한 번에 묶어서 반환한다.
+
+    "재생 출력이 실제 Command 채널로 전달되지 않는다"(완료 기준)에 대한 근거: 이 함수는
+    SELECT만 수행하고 Redis에 아무것도 발행(publish)하지 않는다 — 애초에 "재생용
+    namespace에 다시 쓰는" 구조가 아니라 "기록된 이벤트를 읽기만 하는" 구조라서, 실제
+    Command Stream으로 새어나갈 경로 자체가 코드에 없다. 그래서 별도의 namespace
+    격리 장치(예: `aeroops:replay:*` 같은 전용 스트림)를 추가로 만들지 않았다 — 만든다면
+    "다시 발행하는" 기능이 생겼을 때이고, 지금은 그런 기능이 없다(YAGNI).
+    """
+    session = get_operation_session(db, session_id)
+    events = list_event_log(
+        db,
+        operation_session_id=session_id,
+        since=since,
+        until=until,
+        order=order,
+        limit=limit,
+    )
+    return session, events

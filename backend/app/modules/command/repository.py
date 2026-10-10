@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.command.models import Command, CommandEvent
 from app.modules.command.state_machine import CANCELLABLE_STATUSES, assert_transition_allowed
+from app.modules.deployment.repository import append_event_log
 from app.modules.telemetry.repository import ensure_asset_exists
 from app.schemas.command import CommandEnvelope
 
@@ -109,18 +110,36 @@ def create_command_idempotent(db: Session, envelope: CommandEnvelope) -> Command
             raise  # idempotency_key 충돌이 아닌 다른 무결성 오류 — 그대로 알린다
         return _reconcile_existing(existing, envelope, payload_hash)
 
+    created_at = datetime.now(timezone.utc)
     db.add(
         CommandEvent(
             command_id=command.id,
             event_no=1,
             event_type="CREATED",
-            occurred_at=datetime.now(timezone.utc),
+            occurred_at=created_at,
             actor=envelope.requested_by,
             detail=envelope.model_dump(mode="json"),
         )
     )
     db.commit()
     db.refresh(command)
+
+    # 목적: event_log는 "재생 가능한 정규화 이벤트"의 전체 집합이어야 한다(텔레메트리만
+    # 있고 명령이 빠지면 재생 화면에서 "그때 승인된 명령"을 못 보여준다). commit 이후에
+    # 불러서 commands/command_events 쓰기 트랜잭션에 영향이 없게 한다(telemetry
+    # consumer에서와 같은 원칙).
+    # correlation_id=command.id: CommandEnvelope엔 별도 correlation_id 필드가 없다 —
+    # "이 명령에 관한 모든 이벤트를 하나로 묶는 키"로 command_id 자체가 이미 그 역할을
+    # 하므로 새 필드를 추가하지 않고 재사용한다.
+    append_event_log(
+        db,
+        event_time=created_at,
+        stream_sequence=1,
+        source_channel="command",
+        event_type="command.CREATED",
+        correlation_id=command.id,
+        payload={"command_id": command.id, "target_asset_id": command.target_asset_id},
+    )
     return CommandCreationResult(command=command, is_new=True)
 
 
@@ -173,18 +192,37 @@ def _transition(
     """
     assert_transition_allowed(command.status, target)
     command.status = target
+    event_no = _next_event_no(db, command.id)
+    occurred_at = datetime.now(timezone.utc)
     db.add(
         CommandEvent(
             command_id=command.id,
-            event_no=_next_event_no(db, command.id),
+            event_no=event_no,
             event_type=target,
-            occurred_at=datetime.now(timezone.utc),
+            occurred_at=occurred_at,
             actor=actor,
             detail=detail,
         )
     )
     db.commit()
     db.refresh(command)
+
+    # stream_sequence=event_no: command_events가 이미 명령별로 1부터 매기는 단조증가
+    # 값이라(모델 docstring) 그대로 재사용한다 — create_command_idempotent의 CREATED
+    # 이벤트와 같은 원칙.
+    append_event_log(
+        db,
+        event_time=occurred_at,
+        stream_sequence=event_no,
+        source_channel="command",
+        event_type=f"command.{target}",
+        correlation_id=command.id,
+        payload={
+            "command_id": command.id,
+            "target_asset_id": command.target_asset_id,
+            "actor": actor,
+        },
+    )
     return command
 
 

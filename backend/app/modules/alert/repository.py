@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.alert.models import Alert
 from app.modules.alert.rules import RULE_VERSION, evaluate_all
+from app.modules.deployment.repository import append_event_log
 from app.modules.mission.repository import list_geofences
 from app.schemas.telemetry import TelemetryFrame
 
@@ -56,6 +57,24 @@ def evaluate_and_raise_alerts(db: Session, frame: TelemetryFrame) -> list[Alert]
         db.commit()
         for alert in created:
             db.refresh(alert)
+            # stream_sequence=alert.id: alert별 전용 카운터가 없어(배터리/RSSI/지오펜스가
+            # 섞여 있어 "같은 alert_type 안에서의 순서" 같은 좁은 개념이 안 맞는다)
+            # DB의 전역 자동증가 id를 그대로 쓴다 — 전역으로도 단조증가라 tie-break
+            # 역할은 그대로 한다(`append_event_log` docstring의 stream_sequence 설명).
+            append_event_log(
+                db,
+                event_time=alert.triggered_at,
+                stream_sequence=alert.id,
+                source_channel="alert",
+                event_type="alert.OPENED",
+                payload={
+                    "alert_id": alert.id,
+                    "asset_id": alert.asset_id,
+                    "alert_type": alert.alert_type,
+                    "severity": alert.severity,
+                    "rule_version": alert.rule_version,
+                },
+            )
     return created
 
 
@@ -87,6 +106,14 @@ def acknowledge_alert(db: Session, alert_id: int, acknowledged_by: str) -> Alert
     alert.acknowledged_by = acknowledged_by
     db.commit()
     db.refresh(alert)
+    append_event_log(
+        db,
+        event_time=alert.acknowledged_at,
+        stream_sequence=alert.id,
+        source_channel="alert",
+        event_type="alert.ACKNOWLEDGED",
+        payload={"alert_id": alert.id, "acknowledged_by": acknowledged_by},
+    )
     return alert
 
 
@@ -99,4 +126,12 @@ def resolve_alert(db: Session, alert_id: int, resolved_by: str) -> Alert:
     alert.resolved_by = resolved_by
     db.commit()
     db.refresh(alert)
+    append_event_log(
+        db,
+        event_time=alert.resolved_at,
+        stream_sequence=alert.id,
+        source_channel="alert",
+        event_type="alert.RESOLVED",
+        payload={"alert_id": alert.id, "resolved_by": resolved_by},
+    )
     return alert

@@ -25,6 +25,7 @@ from app.core.redis import get_telemetry_redis
 from app.db.base import SessionLocal
 from app.modules.alert.repository import evaluate_and_raise_alerts
 from app.modules.alert.schemas import AlertOut
+from app.modules.deployment.repository import append_event_log
 from app.modules.ingestion.streams import CONSUMER_GROUP, CONSUMER_NAME, TELEMETRY_STREAM
 from app.modules.realtime.broadcaster import get_broadcaster
 from app.modules.telemetry.repository import get_latest_state, process_frame
@@ -59,6 +60,29 @@ def _handle_message(payload: str) -> list[dict]:
     messages: list[dict] = []
     with SessionLocal() as db:
         is_new, latest_updated = process_frame(db, frame)
+
+        # 목적: 7단계 재생 엔진이 "실제로 무슨 일이 있었는지"(중복·역순 포함)를 그대로
+        # 복원할 수 있어야 한다 — 그래서 `is_new`/`latest_updated`와 무관하게 수신된
+        # 프레임마다 항상 1건을 남긴다(최신 상태를 바꾼 프레임만 남기면, "역순으로 와서
+        # 버려진 데이터가 있었다"는 사실 자체가 재생에서 사라진다).
+        # stream_sequence=frame.sequence_no: 텔레메트리 채널에서는 기체가 이미
+        # 단조증가로 붙여 보내는 값이라 이 함수가 새로 번호를 매길 필요가 없다
+        # (`append_event_log` docstring의 "stream_sequence" 설명 참고).
+        append_event_log(
+            db,
+            event_time=frame.event_time,
+            stream_sequence=frame.sequence_no,
+            source_channel="telemetry",
+            event_type="telemetry.received",
+            correlation_id=frame.correlation_id,
+            payload={
+                "asset_id": frame.asset_id,
+                "sequence_no": frame.sequence_no,
+                "is_new": is_new,
+                "latest_updated": latest_updated,
+            },
+        )
+
         if latest_updated:
             latest_record = get_latest_state(db, frame.asset_id)
             if latest_record is not None:

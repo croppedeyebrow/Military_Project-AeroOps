@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.command.models import Command
 from app.modules.command.state_machine import TERMINAL_STATUSES as TERMINAL_COMMAND_STATUSES
+from app.modules.deployment.repository import append_event_log
 from app.modules.sync.models import SyncSession
 from app.modules.sync.schemas import MAX_LISTED_MISSING_SEQUENCE_NUMBERS, SyncRequest
 from app.modules.telemetry.models import AssetLatestState
@@ -71,25 +72,46 @@ def perform_sync(db: Session, asset_id: str, request: SyncRequest) -> SyncDecisi
     snapshot_reissued = gap_count > 0 or anomaly is not None
     latest_state = get_latest_state(db, asset_id) if snapshot_reissued else None
 
-    db.add(
-        SyncSession(
-            asset_id=asset_id,
-            requested_at=datetime.now(timezone.utc),
-            reported_last_sequence_no=request.last_sequence_no,
-            server_last_sequence_no=server_max_seq,
-            sequence_gap_count=gap_count,
-            reported_last_processed_command_id=request.last_processed_command_id,
-            pending_command_ids=pending_command_ids,
-            snapshot_reissued=snapshot_reissued,
-            detail={
-                "anomaly": anomaly,
-                "state_version": request.state_version,
-                "missing_sequence_numbers_truncated": len(missing)
-                >= MAX_LISTED_MISSING_SEQUENCE_NUMBERS,
-            },
-        )
+    requested_at = datetime.now(timezone.utc)
+    sync_session = SyncSession(
+        asset_id=asset_id,
+        requested_at=requested_at,
+        reported_last_sequence_no=request.last_sequence_no,
+        server_last_sequence_no=server_max_seq,
+        sequence_gap_count=gap_count,
+        reported_last_processed_command_id=request.last_processed_command_id,
+        pending_command_ids=pending_command_ids,
+        snapshot_reissued=snapshot_reissued,
+        detail={
+            "anomaly": anomaly,
+            "state_version": request.state_version,
+            "missing_sequence_numbers_truncated": len(missing)
+            >= MAX_LISTED_MISSING_SEQUENCE_NUMBERS,
+        },
     )
+    db.add(sync_session)
     db.commit()
+    # id가 DB에서 발급되는 자동증가 값이라 commit 이후에야 읽을 수 있다 — event_log의
+    # stream_sequence로 재사용하려면 refresh가 필요하다(원래 코드엔 없었다: 이 값을
+    # 호출부가 안 썼기 때문).
+    db.refresh(sync_session)
+
+    # 목적: 재동기화는 "장애 복구성"을 보여주는 핵심 장면이라(완료 기준 "재동기화
+    # 성공률") event_log에도 남아야 재생 화면에서 "이 시점에 재연결·대조가 있었다"를
+    # 보여줄 수 있다.
+    append_event_log(
+        db,
+        event_time=requested_at,
+        stream_sequence=sync_session.id,
+        source_channel="sync",
+        event_type="sync.PERFORMED",
+        payload={
+            "asset_id": asset_id,
+            "sequence_gap_count": gap_count,
+            "anomaly": anomaly,
+            "snapshot_reissued": snapshot_reissued,
+        },
+    )
 
     return SyncDecision(
         server_last_sequence_no=server_max_seq,

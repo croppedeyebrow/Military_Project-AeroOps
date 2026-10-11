@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TelemetryFrame } from "../../types/telemetry";
-import { findFrameAtTime } from "./frameLookup";
+import type { ReplayDataset } from "../../types/replay";
+import { buildAssetFramesAtTime, findFrameAtTime } from "./frameLookup";
 
 function makeFrame(eventTime: string, sequenceNo: number): TelemetryFrame {
   return {
@@ -62,5 +63,28 @@ describe("findFrameAtTime", () => {
   it("단일 프레임 배열에서도 동작", () => {
     const single = [FRAMES[0]];
     expect(findFrameAtTime(single, Date.parse("2026-01-01T00:00:05Z"))?.sequence_no).toBe(0);
+  });
+});
+
+describe("buildAssetFramesAtTime", () => {
+  const OTHER_FRAMES = [makeFrame("2026-01-01T00:00:50Z", 0)];
+
+  it("각 기체의 그 시각 프레임을 asset_id로 묶어 돌려준다", () => {
+    const dataset: ReplayDataset = { "drone-01": FRAMES, "drone-02": OTHER_FRAMES };
+    const t = Date.parse("2026-01-01T00:00:55Z"); // 둘 다 첫 프레임 이후라 둘 다 데이터가 있음
+    const result = buildAssetFramesAtTime(dataset, t);
+    expect(result["drone-01"].sequence_no).toBe(3);
+    expect(result["drone-02"].sequence_no).toBe(0);
+  });
+
+  it("아직 데이터가 없는 기체는 결과에서 빠진다", () => {
+    const dataset: ReplayDataset = { "drone-01": FRAMES, "drone-02": OTHER_FRAMES };
+    const t = Date.parse("2026-01-01T00:00:15Z"); // drone-02의 첫 프레임(00:00:50)보다 이름
+    const result = buildAssetFramesAtTime(dataset, t);
+    expect(result["drone-02"]).toBeUndefined();
+  });
+
+  it("빈 데이터셋이면 빈 객체", () => {
+    expect(buildAssetFramesAtTime({}, Date.now())).toEqual({});
   });
 });

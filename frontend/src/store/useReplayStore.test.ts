@@ -9,6 +9,7 @@ beforeEach(() => {
     currentTimeMs: null,
     isPlaying: false,
     speed: 1,
+    selectedAssetId: null,
   });
 });
 
@@ -79,5 +80,19 @@ describe("useReplayStore", () => {
     const state = useReplayStore.getState();
     expect(state.currentTimeMs).toBe(1_000);
     expect(state.isPlaying).toBe(false);
+  });
+
+  it("selectAsset updates the selection", () => {
+    useReplayStore.getState().selectAsset("drone-01");
+    expect(useReplayStore.getState().selectedAssetId).toBe("drone-01");
+    useReplayStore.getState().selectAsset(null);
+    expect(useReplayStore.getState().selectedAssetId).toBeNull();
+  });
+
+  it("selectSession clears any asset selected under a previous session", () => {
+    useReplayStore.getState().selectSession("session-1", 0, 10_000);
+    useReplayStore.getState().selectAsset("drone-01");
+    useReplayStore.getState().selectSession("session-2", 0, 10_000);
+    expect(useReplayStore.getState().selectedAssetId).toBeNull();
   });
 });

@@ -21,12 +21,16 @@ interface ReplayState {
   currentTimeMs: number | null;
   isPlaying: boolean;
   speed: ReplaySpeed;
+  /** 재생 화면에서 지도/목록으로 고른 기체 — `useOperationsStore.selectedAssetId`와
+   * 같은 역할이지만 재생 화면 전용으로 분리한다(화면 자체가 분리돼 있으므로). */
+  selectedAssetId: string | null;
 
   selectSession: (sessionId: string, rangeStartMs: number, rangeEndMs: number) => void;
   play: () => void;
   pause: () => void;
   seek: (timeMs: number) => void;
   setSpeed: (speed: ReplaySpeed) => void;
+  selectAsset: (assetId: string | null) => void;
   /** `requestAnimationFrame` 루프(컴포넌트 쪽)가 매 프레임 실제 경과 시간을 넘긴다.
    * 구간 끝에 닿으면 스스로 멈춘다(`advanceReplayTime`의 `finished`). */
   tick: (elapsedRealMs: number) => void;
@@ -39,6 +43,7 @@ export const useReplayStore = create<ReplayState>((set, get) => ({
   currentTimeMs: null,
   isPlaying: false,
   speed: 1,
+  selectedAssetId: null,
 
   selectSession: (sessionId, rangeStartMs, rangeEndMs) =>
     set({
@@ -48,6 +53,8 @@ export const useReplayStore = create<ReplayState>((set, get) => ({
       currentTimeMs: rangeStartMs, // 새 세션을 고르면 항상 처음부터 — 이전 세션의 커서
       // 위치를 이어받으면 "지금 뭘 보고 있는지" 헷갈린다.
       isPlaying: false,
+      selectedAssetId: null, // 세션이 바뀌면 이전 세션에서 고른 기체 선택도 비운다 —
+      // 그 기체가 이번 세션엔 없을 수도 있다.
     }),
 
   play: () => {
@@ -71,6 +78,8 @@ export const useReplayStore = create<ReplayState>((set, get) => ({
   },
 
   setSpeed: (speed) => set({ speed }),
+
+  selectAsset: (assetId) => set({ selectedAssetId: assetId }),
 
   tick: (elapsedRealMs) => {
     const { isPlaying, currentTimeMs, rangeEndMs, speed } = get();

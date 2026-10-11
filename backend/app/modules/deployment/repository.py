@@ -29,6 +29,10 @@ class OperationSessionNotFound(Exception):
     pass
 
 
+class DeploymentNotFound(Exception):
+    pass
+
+
 def current_schema_version() -> str | None:
     """alembic migration 스크립트 기준 head revision("코드가 기대하는" 스키마 버전).
 
@@ -103,6 +107,20 @@ def list_deployments(db: Session, limit: int = 50) -> list[Deployment]:
     return list(
         db.execute(select(Deployment).order_by(Deployment.created_at.desc()).limit(limit)).scalars()
     )
+
+
+def get_deployment(db: Session, deployment_id: str) -> Deployment:
+    """특정 배포 하나를 id로 조회한다.
+
+    목적: `list_deployments`(목록)만으로는 "이 운용 세션/재생 구간은 어느 배포였나"처럼
+    `OperationSession.deployment_id`나 `EventLog.deployment_id`에 들어있는 특정 id 하나를
+    찾을 방법이 없었다 — 프론트의 `DeploymentBadge`가 "재생 대상" 모드로 특정 과거 배포의
+    git_sha/이미지 태그를 보여주려면 이 단건 조회가 필요하다.
+    """
+    deployment = db.get(Deployment, deployment_id)
+    if deployment is None:
+        raise DeploymentNotFound(f"배포 '{deployment_id}'를 찾을 수 없다")
+    return deployment
 
 
 def start_operation_session(

@@ -5,6 +5,8 @@
   `current_schema_version()`을 그대로 쓴다 — DB 조회 없이 alembic head만 읽는 그 함수).
 - `GET /deployments`: 7단계에서 추가. `deployments` row 목록(최근 등록 순) — 운영자가
   "최근에 뭐가 바뀌었는지" 확인하거나, 재생 화면에서 특정 배포를 선택할 때 쓴다.
+- `GET /deployments/{id}`: 특정 배포 단건 조회(`DeploymentBadge`의 "재생 대상" 모드처럼
+  `deployment_id` 하나를 사람이 읽을 수 있는 버전 정보로 바꿀 때 쓴다).
 - `POST /operation-sessions` / `POST /operation-sessions/{id}/end` / `GET
   /operation-sessions/{id}`: 운용 구간 수명주기. 시작 시 `get_or_create_current_deployment`
   로 "지금 배포"를 찾아 고정한다(`repository.py` docstring 참고).
@@ -23,10 +25,12 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.base import get_db
 from app.modules.deployment.repository import (
+    DeploymentNotFound,
     EventLogOrder,
     OperationSessionNotFound,
     current_schema_version,
     end_operation_session,
+    get_deployment,
     get_operation_session,
     get_or_create_current_deployment,
     get_replay_session,
@@ -58,6 +62,15 @@ def get_build_info() -> dict:
 @router.get("/deployments", response_model=list[DeploymentOut])
 def list_deployments_endpoint(db: Session = Depends(get_db)) -> list[DeploymentOut]:
     return [DeploymentOut.model_validate(d) for d in list_deployments(db)]
+
+
+@router.get("/deployments/{deployment_id}", response_model=DeploymentOut)
+def get_deployment_endpoint(deployment_id: str, db: Session = Depends(get_db)) -> DeploymentOut:
+    try:
+        deployment = get_deployment(db, deployment_id)
+    except DeploymentNotFound:
+        raise HTTPException(status_code=404, detail="deployment not found") from None
+    return DeploymentOut.model_validate(deployment)
 
 
 @router.post("/operation-sessions", response_model=OperationSessionOut, status_code=201)

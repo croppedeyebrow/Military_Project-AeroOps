@@ -17,6 +17,23 @@ def test_build_info_reports_current_version(live_client: TestClient):
     assert "image_tag" in body
 
 
+def test_get_deployment_by_id_round_trips(live_client: TestClient):
+    # 목적: DeploymentBadge의 "재생 대상" 모드처럼 목록이 아니라 특정 id 하나를
+    # 조회하는 경로(`GET /deployments/{id}`)가 목록에 있는 것과 같은 내용을 주는지 확인.
+    listed = live_client.get("/deployments").json()
+    assert len(listed) >= 1
+    deployment_id = listed[0]["id"]
+
+    fetched = live_client.get(f"/deployments/{deployment_id}")
+    assert fetched.status_code == 200
+    assert fetched.json() == listed[0]
+
+
+def test_get_unknown_deployment_404(live_client: TestClient):
+    response = live_client.get("/deployments/unknown-deployment-id")
+    assert response.status_code == 404
+
+
 def test_lifespan_auto_registers_current_deployment(live_client: TestClient):
     # 근거: main.py의 lifespan이 앱 시작 시 get_or_create_current_deployment를 호출하므로,
     # 별도 API를 호출하지 않아도 /deployments 목록에 최소 1건이 이미 있어야 한다.

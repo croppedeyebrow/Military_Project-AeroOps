@@ -6,6 +6,7 @@ import { AssetDetail } from "./components/AssetDetail/AssetDetail";
 import { AssetList } from "./components/AssetList/AssetList";
 import { CommandComposer } from "./components/CommandComposer/CommandComposer";
 import { CommandTimeline } from "./components/CommandTimeline/CommandTimeline";
+import { DeploymentBadge } from "./components/DeploymentBadge/DeploymentBadge";
 import { OperationsMap } from "./components/OperationsMap/OperationsMap";
 import { ResyncBanner } from "./components/ResyncBanner/ResyncBanner";
 import { Vehicle3DViewer } from "./components/Vehicle3DViewer/Vehicle3DViewer";
@@ -69,6 +70,7 @@ function App() {
           ● {CONNECTION_LABEL[connectionStatus]}
         </span>
         <span style={{ color: "gray", marginLeft: "auto" }}>기체 {assetCount}대</span>
+        <DeploymentBadge />
       </header>
 
       <ResyncBanner />

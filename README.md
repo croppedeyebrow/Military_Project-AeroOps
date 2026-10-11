@@ -59,7 +59,7 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
 ```
 
 - API: http://localhost:8000/health/ready, http://localhost:8000/docs
-- Web: http://localhost:5173 (`npm run dev`로 직접 실행 시) 또는 compose의 5173 포트
+- Web: http://localhost:5173 (`yarn dev`로 직접 실행 시) 또는 compose의 5173 포트
 - Grafana: http://localhost:3000, Prometheus: http://localhost:9090
 
 시뮬레이터는 기본적으로 실행되지 않는다(`profiles: with-simulator`). 3단계부터 실제

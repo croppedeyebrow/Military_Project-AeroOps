@@ -8,17 +8,17 @@ React + TypeScript + Vite. `docs/planning/01_프론트엔드_아키텍처.md` �
 [`backend/README.md`](../backend/README.md)로 backend를 먼저 띄운다.
 
 ```bash
-npm install
+yarn install
 cp .env.example .env
-npm run dev
+yarn dev
 ```
 
 ## 테스트 / 린트 / 빌드
 
 ```bash
-npm run lint
-npm run build
-npm run test
+yarn lint
+yarn build
+yarn test
 ```
 
 ## 구조

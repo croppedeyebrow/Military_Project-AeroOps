@@ -8,6 +8,7 @@ import { CommandComposer } from "./components/CommandComposer/CommandComposer";
 import { CommandTimeline } from "./components/CommandTimeline/CommandTimeline";
 import { DeploymentBadge } from "./components/DeploymentBadge/DeploymentBadge";
 import { OperationsMap } from "./components/OperationsMap/OperationsMap";
+import { ReplayScreen } from "./components/ReplayTimeline/ReplayScreen";
 import { ResyncBanner } from "./components/ResyncBanner/ResyncBanner";
 import { Vehicle3DViewer } from "./components/Vehicle3DViewer/Vehicle3DViewer";
 import { useOperationsStore, type ConnectionStatus } from "./store/useOperationsStore";
@@ -28,6 +29,8 @@ const CONNECTION_COLOR: Record<ConnectionStatus, string> = {
 };
 
 type RightTab = "detail" | "command";
+/** 최상위 화면 전환 — 사용자 결정(2026-10-11): 재생은 실시간 관제와 분리된 별도 탭. */
+type MainView = "live" | "replay";
 
 /**
  * 관제 메인 화면. 4단계(2D 실시간 관제)에 5단계(임무·경보·명령)를 더했다.
@@ -43,6 +46,7 @@ function App() {
 
   const { data: initialAssets } = useAssetsLatestQuery();
 
+  const [mainView, setMainView] = useState<MainView>("live");
   const [rightTab, setRightTab] = useState<RightTab>("detail");
   const [selectedCommandId, setSelectedCommandId] = useState<string | null>(null);
 
@@ -66,6 +70,14 @@ function App() {
         }}
       >
         <h1 style={{ fontSize: "1.1rem", margin: 0 }}>AeroOps 관제</h1>
+        <div style={{ display: "flex", width: 200 }}>
+          <TabButton active={mainView === "live"} onClick={() => setMainView("live")}>
+            실시간 관제
+          </TabButton>
+          <TabButton active={mainView === "replay"} onClick={() => setMainView("replay")}>
+            이력 재생
+          </TabButton>
+        </div>
         <span style={{ color: CONNECTION_COLOR[connectionStatus] }}>
           ● {CONNECTION_LABEL[connectionStatus]}
         </span>
@@ -75,61 +87,67 @@ function App() {
 
       <ResyncBanner />
 
-      <main style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        <div
-          style={{
-            width: 280,
-            borderRight: "1px solid #ddd",
-            display: "flex",
-            flexDirection: "column",
-            minHeight: 0,
-          }}
-        >
-          <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-            <AssetList />
-          </div>
-          <div style={{ flex: 1, minHeight: 0, borderTop: "1px solid #ddd", overflow: "hidden" }}>
-            <AlertPanel />
-          </div>
-        </div>
+      {/* WS 구독(useTelemetryStream)은 App 최상단에서 탭과 무관하게 계속 돈다 — 재생
+          탭을 보고 있는 동안에도 실시간 상태는 최신으로 유지돼, 돌아왔을 때 바로 이어진다. */}
+      {mainView === "replay" && <ReplayScreen />}
 
-        <div style={{ flex: 1, position: "relative" }}>
-          <OperationsMap />
-        </div>
-
-        <div style={{ width: 340, borderLeft: "1px solid #ddd", display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", borderBottom: "1px solid #ddd" }}>
-            <TabButton active={rightTab === "detail"} onClick={() => setRightTab("detail")}>
-              기체 상세
-            </TabButton>
-            <TabButton active={rightTab === "command"} onClick={() => setRightTab("command")}>
-              명령
-            </TabButton>
+      {mainView === "live" && (
+        <main style={{ display: "flex", flex: 1, minHeight: 0 }}>
+          <div
+            style={{
+              width: 280,
+              borderRight: "1px solid #ddd",
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }}
+          >
+            <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+              <AssetList />
+            </div>
+            <div style={{ flex: 1, minHeight: 0, borderTop: "1px solid #ddd", overflow: "hidden" }}>
+              <AlertPanel />
+            </div>
           </div>
 
-          <div style={{ flex: 1, overflowY: "auto" }}>
-            {rightTab === "detail" && (
-              <>
-                <Vehicle3DViewer />
-                <hr style={{ border: "none", borderTop: "1px solid #eee" }} />
-                <AssetDetail />
-              </>
-            )}
-            {rightTab === "command" && (
-              <>
-                <CommandComposer />
-                <hr style={{ border: "none", borderTop: "1px solid #eee" }} />
-                <ApprovalQueue
-                  selectedCommandId={selectedCommandId}
-                  onSelectCommand={setSelectedCommandId}
-                />
-                <hr style={{ border: "none", borderTop: "1px solid #eee" }} />
-                <CommandTimeline commandId={selectedCommandId} />
-              </>
-            )}
+          <div style={{ flex: 1, position: "relative" }}>
+            <OperationsMap />
           </div>
-        </div>
-      </main>
+
+          <div style={{ width: 340, borderLeft: "1px solid #ddd", display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", borderBottom: "1px solid #ddd" }}>
+              <TabButton active={rightTab === "detail"} onClick={() => setRightTab("detail")}>
+                기체 상세
+              </TabButton>
+              <TabButton active={rightTab === "command"} onClick={() => setRightTab("command")}>
+                명령
+              </TabButton>
+            </div>
+
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              {rightTab === "detail" && (
+                <>
+                  <Vehicle3DViewer />
+                  <hr style={{ border: "none", borderTop: "1px solid #eee" }} />
+                  <AssetDetail />
+                </>
+              )}
+              {rightTab === "command" && (
+                <>
+                  <CommandComposer />
+                  <hr style={{ border: "none", borderTop: "1px solid #eee" }} />
+                  <ApprovalQueue
+                    selectedCommandId={selectedCommandId}
+                    onSelectCommand={setSelectedCommandId}
+                  />
+                  <hr style={{ border: "none", borderTop: "1px solid #eee" }} />
+                  <CommandTimeline commandId={selectedCommandId} />
+                </>
+              )}
+            </div>
+          </div>
+        </main>
+      )}
     </div>
   );
 }

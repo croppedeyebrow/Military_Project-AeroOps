@@ -58,6 +58,15 @@ def test_start_operation_session_pins_current_deployment(live_client: TestClient
     assert session["ended_at"] is None
 
 
+def test_list_operation_sessions_includes_created(live_client: TestClient):
+    # 목적: ReplayTimeline의 세션 선택 UI가 쓸 GET /operation-sessions(목록)이 방금
+    # 만든 세션을 포함하는지 확인.
+    session = live_client.post("/operation-sessions", json={"started_by": "pytest-list"}).json()
+
+    listed = live_client.get("/operation-sessions").json()
+    assert any(s["id"] == session["id"] for s in listed)
+
+
 def test_end_operation_session_sets_ended_at(live_client: TestClient):
     session = live_client.post("/operation-sessions", json={}).json()
 

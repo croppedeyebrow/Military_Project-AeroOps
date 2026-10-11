@@ -7,9 +7,10 @@
   "최근에 뭐가 바뀌었는지" 확인하거나, 재생 화면에서 특정 배포를 선택할 때 쓴다.
 - `GET /deployments/{id}`: 특정 배포 단건 조회(`DeploymentBadge`의 "재생 대상" 모드처럼
   `deployment_id` 하나를 사람이 읽을 수 있는 버전 정보로 바꿀 때 쓴다).
-- `POST /operation-sessions` / `POST /operation-sessions/{id}/end` / `GET
-  /operation-sessions/{id}`: 운용 구간 수명주기. 시작 시 `get_or_create_current_deployment`
-  로 "지금 배포"를 찾아 고정한다(`repository.py` docstring 참고).
+- `POST /operation-sessions` / `GET /operation-sessions` / `POST
+  /operation-sessions/{id}/end` / `GET /operation-sessions/{id}`: 운용 구간 수명주기.
+  시작 시 `get_or_create_current_deployment`로 "지금 배포"를 찾아 고정한다
+  (`repository.py` docstring 참고). 목록은 `ReplayTimeline`의 세션 선택 UI가 쓴다.
 - `GET /operation-sessions/{id}/replay`: 7단계 재생 엔진 1차 — 세션 메타데이터 +
   정렬된 이벤트 목록(`repository.get_replay_session` docstring 참고). 왜 실제 Command
   채널로 새지 않는지도 그 docstring에 근거를 남겼다(이 endpoint는 조회만 한다).
@@ -36,6 +37,7 @@ from app.modules.deployment.repository import (
     get_replay_session,
     list_deployments,
     list_event_log,
+    list_operation_sessions,
     start_operation_session,
 )
 from app.modules.deployment.schemas import (
@@ -83,6 +85,14 @@ def start_operation_session_endpoint(
     deployment = get_or_create_current_deployment(db)
     session = start_operation_session(db, started_by=body.started_by, deployment_id=deployment.id)
     return OperationSessionOut.model_validate(session)
+
+
+@router.get("/operation-sessions", response_model=list[OperationSessionOut])
+def list_operation_sessions_endpoint(
+    limit: int = Query(default=50, le=200), db: Session = Depends(get_db)
+) -> list[OperationSessionOut]:
+    """최근 시작된 세션부터 반환한다 — `ReplayTimeline`이 "재생할 구간"을 고를 때 쓴다."""
+    return [OperationSessionOut.model_validate(s) for s in list_operation_sessions(db, limit=limit)]
 
 
 @router.post("/operation-sessions/{session_id}/end", response_model=OperationSessionOut)

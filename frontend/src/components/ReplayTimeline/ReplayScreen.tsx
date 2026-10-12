@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useOperationSessionsQuery, useReplayDatasetQuery } from "../../api/replay";
 import { useReplayStore } from "../../store/useReplayStore";
 import { DeploymentBadge } from "../DeploymentBadge/DeploymentBadge";
+import { TelemetryChart } from "../TelemetryChart/TelemetryChart";
 import { ReplayAssetDetail } from "./ReplayAssetDetail";
 import { ReplayMap } from "./ReplayMap";
 import { ReplayTimeline } from "./ReplayTimeline";
@@ -64,16 +65,21 @@ export function ReplayScreen() {
       )}
 
       {dataset && Object.keys(dataset).length > 0 && (
-        <main style={{ display: "flex", flex: 1, minHeight: 0 }}>
-          <div style={{ flex: 1, position: "relative" }}>
-            <ReplayMap dataset={dataset} />
-          </div>
-          <div style={{ width: 340, borderLeft: "1px solid #ddd", overflowY: "auto" }}>
-            <ReplayVehicle3DViewer dataset={dataset} />
-            <hr style={{ border: "none", borderTop: "1px solid #eee" }} />
-            <ReplayAssetDetail dataset={dataset} />
-          </div>
-        </main>
+        <>
+          {/* 컨트롤 바 바로 아래, 지도 위 — 스크럽바와 차트가 같은 시간축을 공유한다는
+              느낌을 주려고 전체 폭으로 둔다(지도/3D 옆 칸에 넣으면 좁아서 읽기 어렵다). */}
+          <TelemetryChart dataset={dataset} />
+          <main style={{ display: "flex", flex: 1, minHeight: 0 }}>
+            <div style={{ flex: 1, position: "relative" }}>
+              <ReplayMap dataset={dataset} />
+            </div>
+            <div style={{ width: 340, borderLeft: "1px solid #ddd", overflowY: "auto" }}>
+              <ReplayVehicle3DViewer dataset={dataset} />
+              <hr style={{ border: "none", borderTop: "1px solid #eee" }} />
+              <ReplayAssetDetail dataset={dataset} />
+            </div>
+          </main>
+        </>
       )}
     </div>
   );

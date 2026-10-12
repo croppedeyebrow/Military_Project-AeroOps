@@ -43,7 +43,13 @@ timestamp로 동기화한다. 7단계(`docs/roadmap/07_단계_이력재생_관�
   에선 문제없지만, 기체가 수백 대로 늘면 여러 기체 이력을 한 번에 주는 배치 endpoint가
   필요하다(테스트 DB처럼 기체가 150대 넘게 쌓인 환경에선 요청이 그만큼 늘어난다).
 
+## 화면 구성 (Unit 5)
+
+- `../TelemetryChart/TelemetryChart.tsx`를 `ReplayScreen`의 컨트롤 바 바로 아래,
+  지도 위에 전체 폭으로 배치했다 — 지도·3D·상세와 똑같이 `useReplayStore.currentTimeMs`
+  를 읽어 커서를 그리므로 추가 동기화 코드가 필요 없다(자세한 설계는
+  `TelemetryChart/README.md`).
+
 ## 아직 없는 것 (다음 단위)
 
-- `TelemetryChart`: 배터리 등 시계열 차트 + 커서 동기화(Unit 5).
 - 재생 중 경보·명령 이벤트 마커(`GET /operation-sessions/{id}/replay`의 event_log 활용).

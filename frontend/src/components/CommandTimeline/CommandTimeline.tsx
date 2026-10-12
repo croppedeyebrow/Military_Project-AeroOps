@@ -1,4 +1,5 @@
 import { useCommandDetailQuery } from "../../api/commands";
+import { theme } from "../../styles/theme";
 
 const EVENT_LABEL: Record<string, string> = {
   CREATED: "생성됨",
@@ -34,7 +35,7 @@ export function CommandTimeline({ commandId }: { commandId: string | null }) {
           <li
             key={event.event_no}
             style={{
-              borderLeft: "2px solid #ccc",
+              borderLeft: `2px solid ${theme.color.border.default}`,
               paddingLeft: "0.6rem",
               marginBottom: "0.4rem",
               fontSize: "0.85em",

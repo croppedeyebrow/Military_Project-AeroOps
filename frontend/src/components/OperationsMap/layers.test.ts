@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { theme } from "../../styles/theme";
 import type { Geofence, MissionRoute } from "../../types/mission";
 import { buildGeofencesGeoJSON, buildMissionRoutesGeoJSON } from "./layers";
 
@@ -42,7 +43,7 @@ describe("buildGeofencesGeoJSON", () => {
       },
     ];
     const geojson = buildGeofencesGeoJSON(geofences);
-    expect(geojson.features[0].properties?.fillColor).toBe("#dc143c");
+    expect(geojson.features[0].properties?.fillColor).toBe(theme.color.status.danger);
     expect(geojson.features[0].geometry.coordinates[0]).toHaveLength(5);
   });
 
@@ -51,6 +52,6 @@ describe("buildGeofencesGeoJSON", () => {
       { id: "gf-2", name: "?", zone_type: "WEIRD", polygon: [[0, 0], [1, 0], [1, 1], [0, 0]], created_at: "" },
     ] as unknown as Geofence[];
     const geojson = buildGeofencesGeoJSON(geofences);
-    expect(geojson.features[0].properties?.fillColor).toBe("#888888");
+    expect(geojson.features[0].properties?.fillColor).toBe(theme.color.text.muted);
   });
 });

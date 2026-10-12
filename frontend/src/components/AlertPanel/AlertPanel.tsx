@@ -73,7 +73,13 @@ function AlertRow({
   onResolve: () => void;
 }) {
   return (
-    <li style={{ padding: "0.5rem", borderBottom: "1px solid #eee", fontSize: "0.9em" }}>
+    <li
+      style={{
+        padding: "0.5rem",
+        borderBottom: `1px solid ${theme.color.border.subtle}`,
+        fontSize: "0.9em",
+      }}
+    >
       <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
         <span
           style={{

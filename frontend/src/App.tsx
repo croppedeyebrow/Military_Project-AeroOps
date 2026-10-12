@@ -70,7 +70,7 @@ function App() {
           alignItems: "center",
           gap: "1rem",
           padding: "0.5rem 1rem",
-          borderBottom: "1px solid #ddd",
+          borderBottom: `1px solid ${theme.color.border.default}`,
         }}
       >
         <h1 style={{ fontSize: "1.1rem", margin: 0 }}>AeroOps 관제</h1>
@@ -100,7 +100,7 @@ function App() {
           <div
             style={{
               width: 280,
-              borderRight: "1px solid #ddd",
+              borderRight: `1px solid ${theme.color.border.default}`,
               display: "flex",
               flexDirection: "column",
               minHeight: 0,
@@ -109,7 +109,14 @@ function App() {
             <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
               <AssetList />
             </div>
-            <div style={{ flex: 1, minHeight: 0, borderTop: "1px solid #ddd", overflow: "hidden" }}>
+            <div
+              style={{
+                flex: 1,
+                minHeight: 0,
+                borderTop: `1px solid ${theme.color.border.default}`,
+                overflow: "hidden",
+              }}
+            >
               <AlertPanel />
             </div>
           </div>
@@ -118,8 +125,15 @@ function App() {
             <OperationsMap />
           </div>
 
-          <div style={{ width: 340, borderLeft: "1px solid #ddd", display: "flex", flexDirection: "column" }}>
-            <div style={{ display: "flex", borderBottom: "1px solid #ddd" }}>
+          <div
+            style={{
+              width: 340,
+              borderLeft: `1px solid ${theme.color.border.default}`,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div style={{ display: "flex", borderBottom: `1px solid ${theme.color.border.default}` }}>
               <TabButton active={rightTab === "detail"} onClick={() => setRightTab("detail")}>
                 기체 상세
               </TabButton>
@@ -132,19 +146,19 @@ function App() {
               {rightTab === "detail" && (
                 <>
                   <Vehicle3DViewer />
-                  <hr style={{ border: "none", borderTop: "1px solid #eee" }} />
+                  <hr style={{ border: "none", borderTop: `1px solid ${theme.color.border.subtle}` }} />
                   <AssetDetail />
                 </>
               )}
               {rightTab === "command" && (
                 <>
                   <CommandComposer />
-                  <hr style={{ border: "none", borderTop: "1px solid #eee" }} />
+                  <hr style={{ border: "none", borderTop: `1px solid ${theme.color.border.subtle}` }} />
                   <ApprovalQueue
                     selectedCommandId={selectedCommandId}
                     onSelectCommand={setSelectedCommandId}
                   />
-                  <hr style={{ border: "none", borderTop: "1px solid #eee" }} />
+                  <hr style={{ border: "none", borderTop: `1px solid ${theme.color.border.subtle}` }} />
                   <CommandTimeline commandId={selectedCommandId} />
                 </>
               )}

@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { useOperationSessionsQuery } from "../../api/replay";
 import { useReplayStore, type ReplaySpeed } from "../../store/useReplayStore";
+import { theme } from "../../styles/theme";
 import { formatReplayClock, sessionRange } from "./format";
 import { useReplayClockLoop } from "./useReplayClockLoop";
 
@@ -110,5 +111,5 @@ const barStyle: CSSProperties = {
   alignItems: "center",
   gap: "0.75rem",
   padding: "0.5rem 1rem",
-  borderBottom: "1px solid #ddd",
+  borderBottom: `1px solid ${theme.color.border.default}`,
 };

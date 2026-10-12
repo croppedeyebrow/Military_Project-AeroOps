@@ -42,8 +42,51 @@ export function createMarkerElement(): HTMLDivElement {
   label.style.fontSize = "11px";
   label.style.color = FRESHNESS_COLOR.disconnected;
   label.style.whiteSpace = "nowrap";
-  label.style.background = "rgba(255,255,255,0.8)";
+  // 다크 테마 전환(2026-10-12): 흰색 반투명이었던 라벨 배경은 어두운 지도 타일 위에서
+  // 튀는 흰 스티커처럼 보여 패널 배경과 같은 계열의 짙은 반투명으로 바꿨다.
+  label.style.background = "rgba(11, 20, 32, 0.75)";
   label.style.padding = "0 2px";
+  el.appendChild(label);
+
+  return el;
+}
+
+/**
+ * 본부(HQ) 마커 — 사용자 결정(2026-10-12): 편대 출발지(성남 판교)를 지도에 고정 표시한다.
+ * 기체 마커(삼각형, 자세에 따라 회전)와 혼동되지 않게 완전히 다른 모양(원형 배지 +
+ * 집 이모지)을 쓴다 — 회전하지도, 상태에 따라 색이 바뀌지도 않는 정적 지형지물이라는
+ * 것을 모양 자체로 드러낸다. 새 아이콘 라이브러리를 추가하지 않고 유니코드 이모지를
+ * 쓴다(이 프로젝트의 기존 방침 — 방향 아이콘도 스프라이트 대신 CSS 삼각형으로 직접 그림).
+ */
+export function createHqMarkerElement(): HTMLDivElement {
+  const el = document.createElement("div");
+  el.title = "본부(HQ)";
+  el.style.display = "flex";
+  el.style.flexDirection = "column";
+  el.style.alignItems = "center";
+  el.style.gap = "2px";
+  el.style.pointerEvents = "none"; // 클릭 선택 대상이 아니다 — 기체 마커와만 상호작용.
+
+  const badge = document.createElement("div");
+  badge.style.width = "22px";
+  badge.style.height = "22px";
+  badge.style.borderRadius = theme.radius.full;
+  badge.style.background = theme.color.background.panel;
+  badge.style.border = `2px solid ${theme.color.accent}`;
+  badge.style.display = "flex";
+  badge.style.alignItems = "center";
+  badge.style.justifyContent = "center";
+  badge.style.fontSize = "12px";
+  badge.textContent = "🏠";
+  el.appendChild(badge);
+
+  const label = document.createElement("span");
+  label.textContent = "본부";
+  label.style.fontSize = "11px";
+  label.style.color = theme.color.accent;
+  label.style.background = "rgba(11, 20, 32, 0.75)";
+  label.style.padding = "0 3px";
+  label.style.borderRadius = "2px";
   el.appendChild(label);
 
   return el;

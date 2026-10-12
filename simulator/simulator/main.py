@@ -6,13 +6,29 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from itertools import zip_longest
 
 import typer
 
+from simulator.device_loop import (
+    DeviceCommandClient,
+    DroneRuntimeState,
+    advance_pose,
+    build_frame,
+    flight_mode_for,
+    poll_and_apply_commands,
+    report_completed_commands,
+)
 from simulator.faults import FAULT_TYPES, apply_faults, apply_packet_loss, apply_reorder_window
-from simulator.generator import build_fleet, generate_frames, scenario_run_id
+from simulator.generator import (
+    BATTERY_DRAIN_PCT_PER_HOUR,
+    RSSI_BASE_DBM,
+    RSSI_JITTER_STD_DBM,
+    build_fleet,
+    generate_frames,
+    scenario_run_id,
+)
 from simulator.sinks import HttpSink, Sink, StdoutSink
 
 app = typer.Typer(help="AeroOps 드론 텔레메트리 시뮬레이터")
@@ -39,6 +55,75 @@ def _build_sink(sink: str, ingest_url: str) -> Sink:
     if sink == "stdout":
         return StdoutSink()
     raise typer.BadParameter(f"알 수 없는 sink: {sink} (http|stdout 중 선택)")
+
+
+def _derive_api_base_url(ingest_url: str) -> str:
+    """`http://host:port/telemetry` -> `http://host:port`. 명령 API(`/commands`,
+    `/commands/{id}/ack` 등)는 수집 API(`/telemetry`)와 같은 서버·포트를 쓰므로,
+    `--ingest-url` 하나로 둘 다 유도한다 — 옵션을 따로 받지 않아도 되게 한다."""
+    return ingest_url.rsplit("/telemetry", 1)[0] if ingest_url.endswith("/telemetry") else ingest_url
+
+
+def _run_reactive(
+    fleet: list,
+    *,
+    frequency_hz: float,
+    duration_sec: float,
+    start_time: datetime,
+    sink_impl: Sink,
+    ingest_url: str,
+) -> int:
+    """실시간 반응형 루프 — 한 틱씩 자세를 계산해 보내면서, 매 틱 명령도 확인해 반영한다
+    (`device_loop.py`). 사전계산(`generate_frames`) 경로와 달리 "다음 틱에 무슨 일이
+    생길지"가 이전 틱 결과(명령 수신 여부)에 달려 있어 미리 계산해둘 수 없다.
+    """
+    dt = 1.0 / frequency_hz
+    num_ticks = int(duration_sec * frequency_hz)
+    client = DeviceCommandClient(_derive_api_base_url(ingest_url))
+    states = {
+        drone.asset_id: DroneRuntimeState(
+            config=drone,
+            lat=drone.scenario.pose_at(0.0).latitude,
+            lon=drone.scenario.pose_at(0.0).longitude,
+            alt=drone.scenario.pose_at(0.0).altitude_m,
+        )
+        for drone in fleet
+    }
+
+    sent = 0
+    try:
+        for seq in range(num_ticks):
+            t = seq * dt
+            now = start_time + timedelta(seconds=t)
+
+            poll_and_apply_commands(client, states)
+
+            for drone in fleet:
+                state = states[drone.asset_id]
+                pose = advance_pose(state, t, dt)
+                battery_pct = max(
+                    0.0,
+                    drone.start_battery_pct - BATTERY_DRAIN_PCT_PER_HOUR * (t / 3600.0),
+                )
+                rssi = float(RSSI_BASE_DBM + drone.rng.normal(0, RSSI_JITTER_STD_DBM))
+                rssi = min(0.0, max(-130.0, rssi))
+                frame = build_frame(
+                    drone,
+                    pose,
+                    seq=seq,
+                    event_time=now,
+                    battery_pct=battery_pct,
+                    rssi_dbm=rssi,
+                    flight_mode=flight_mode_for(state),
+                )
+                sink_impl.send(frame)
+                sent += 1
+
+            report_completed_commands(client, states)
+            time.sleep(dt)
+    finally:
+        client.close()
+    return sent
 
 
 @app.command()
@@ -80,14 +165,37 @@ def run(
         "battery_drop": {"drop_pct": battery_drop_pct},
     }
     run_id = scenario_run_id(scenario, seed)
+
+    # 실시간 + 장애 주입 없음일 때만 명령 반응형 루프를 쓴다. 장애 주입(disconnect/
+    # gps_jump 등)과 재정렬은 "미리 계산해둔 전체 시퀀스를 변형"하는 방식이라, "한 틱씩
+    # 그때그때 계산하며 명령을 끼워 넣는" 반응형 루프와 같이 쓸 수 없다(2026-10-12,
+    # 사용자가 RTL을 보냈는데 드론이 반응하지 않는다고 보고해서 반응형 루프를 새로
+    # 추가했다 — 기존 사전계산 경로는 장애 주입 테스트를 위해 그대로 남겨둔다).
+    use_reactive = real_time and not fault_types and loss_rate == 0.0 and reorder_window <= 1
     typer.echo(
         f"[simulator] run_id={run_id} num_drones={num_drones} frequency_hz={frequency_hz} "
         f"duration_sec={duration_sec} faults={fault_types or '(none)'} loss_rate={loss_rate} "
-        f"reorder_window={reorder_window} sink={sink}"
+        f"reorder_window={reorder_window} sink={sink} mode={'reactive' if use_reactive else 'precomputed'}"
     )
 
     fleet = build_fleet(seed=seed, num_drones=num_drones, scenario_name=scenario)
     start_time = datetime.now(timezone.utc)
+    sink_impl = _build_sink(sink, ingest_url)
+
+    if use_reactive:
+        try:
+            sent = _run_reactive(
+                fleet,
+                frequency_hz=frequency_hz,
+                duration_sec=duration_sec,
+                start_time=start_time,
+                sink_impl=sink_impl,
+                ingest_url=ingest_url,
+            )
+        finally:
+            sink_impl.close()
+        typer.echo(f"[simulator] 완료: {sent}건 전송")
+        return
 
     per_drone_streams: list[list] = []
     for drone in fleet:
@@ -102,7 +210,6 @@ def run(
             frames = apply_reorder_window(frames, drone.rng, window_size=reorder_window)
         per_drone_streams.append(frames)
 
-    sink_impl = _build_sink(sink, ingest_url)
     sent = 0
     try:
         interval_s = 1.0 / frequency_hz

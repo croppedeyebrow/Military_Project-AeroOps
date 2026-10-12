@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useReplayStore } from "../../store/useReplayStore";
+import { theme } from "../../styles/theme";
 import type { ReplayDataset } from "../../types/replay";
 import type { TelemetryFrame } from "../../types/telemetry";
 import { buildLinePath, extentWithPadding, scaleLinear, type ChartPoint } from "./scale";
@@ -63,7 +64,9 @@ export function TelemetryChart({ dataset }: Props) {
     currentTimeMs !== null ? scaleLinear(currentTimeMs, timeDomain, innerWidth) : null;
 
   return (
-    <div style={{ padding: "0.5rem 1rem", borderBottom: "1px solid #ddd" }}>
+    // 버그 수정(2026-10-12, 스크린샷 리뷰로 발견한 계열): border/선 색이 다크 테마
+    // 전환 전 밝은 배경 기준 값(#ddd, #3388ff) 그대로 남아있었다. 토큰으로 교체.
+    <div style={{ padding: "0.5rem 1rem", borderBottom: `1px solid ${theme.color.border.subtle}` }}>
       <div style={{ display: "flex", gap: "0.25rem", marginBottom: "0.25rem" }}>
         {FIELDS.map(({ key, label }) => (
           <button
@@ -80,14 +83,15 @@ export function TelemetryChart({ dataset }: Props) {
       ) : (
         <svg width="100%" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ display: "block" }}>
           <g transform={`translate(${PADDING.left}, ${PADDING.top})`}>
-            <path d={path} fill="none" stroke="#3388ff" strokeWidth={1.5} />
+            <path d={path} fill="none" stroke={theme.color.accent} strokeWidth={1.5} />
             {cursorX !== null && (
               <line
                 x1={cursorX}
                 x2={cursorX}
                 y1={0}
                 y2={innerHeight}
-                stroke="#d9480f"
+                // 데이터 선(accent, 시안)과 뚜렷이 구분되게 warning(amber) 톤을 쓴다.
+                stroke={theme.color.status.warning}
                 strokeWidth={1}
               />
             )}

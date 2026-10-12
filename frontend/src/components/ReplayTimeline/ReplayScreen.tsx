@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useOperationSessionsQuery, useReplayDatasetQuery } from "../../api/replay";
 import { useReplayStore } from "../../store/useReplayStore";
+import { theme } from "../../styles/theme";
 import { DeploymentBadge } from "../DeploymentBadge/DeploymentBadge";
 import { TelemetryChart } from "../TelemetryChart/TelemetryChart";
 import { ReplayAssetDetail } from "./ReplayAssetDetail";
@@ -73,9 +74,9 @@ export function ReplayScreen() {
             <div style={{ flex: 1, position: "relative" }}>
               <ReplayMap dataset={dataset} />
             </div>
-            <div style={{ width: 340, borderLeft: "1px solid #ddd", overflowY: "auto" }}>
+            <div style={{ width: 340, borderLeft: `1px solid ${theme.color.border.default}`, overflowY: "auto" }}>
               <ReplayVehicle3DViewer dataset={dataset} />
-              <hr style={{ border: "none", borderTop: "1px solid #eee" }} />
+              <hr style={{ border: "none", borderTop: `1px solid ${theme.color.border.subtle}` }} />
               <ReplayAssetDetail dataset={dataset} />
             </div>
           </main>

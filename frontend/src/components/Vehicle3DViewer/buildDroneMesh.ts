@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { theme } from "../../styles/theme";
 
 /**
  * 저폴리곤 쿼드콥터 placeholder 지오메트리를 코드로 직접 생성한다.
@@ -16,9 +17,14 @@ export function buildDroneMesh(): THREE.Group {
   const group = new THREE.Group();
   group.name = "drone-placeholder";
 
-  const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x3a3a3a });
-  const armMaterial = new THREE.MeshStandardMaterial({ color: 0x5a5a5a });
-  const propMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+  // 버그 수정(2026-10-12, 스크린샷으로 발견): 원래 어두운 회색 3종(동체/암/프로펠러
+  // 전부 #3a3a3a 이하)은 밝은 배경(#f2f2f2)에서는 또렷했지만, 다크 테마 배경
+  // (theme.color.background.sunken)으로 바뀌면서 기체 실루엣이 배경에 거의 묻혀
+  // 안 보이게 됐다. 동체·암은 밝은 톤으로 올려 또렷한 실루엣을 유지하고, 프로펠러만
+  // 상대적으로 어둡게 둬(그래도 완전한 검정은 아님) 디테일 위계를 살린다.
+  const bodyMaterial = new THREE.MeshStandardMaterial({ color: "#cbd5e1" });
+  const armMaterial = new THREE.MeshStandardMaterial({ color: theme.color.text.secondary });
+  const propMaterial = new THREE.MeshStandardMaterial({ color: theme.color.border.default });
 
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 0.3), bodyMaterial);
   body.name = "body";

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { theme } from "../../styles/theme";
 import type { AssetFreshness, TelemetryFrame } from "../../types/telemetry";
 import { quaternionFromAttitude } from "./attitude";
 import { buildDroneMesh, disposeDroneMesh } from "./buildDroneMesh";
@@ -59,18 +60,24 @@ export function Vehicle3DViewerView({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
 
+    // 버그 수정(2026-10-12, 스크린샷으로 발견): 다크 테마 전환 전 배경(#f2f2f2, 밝은
+    // 회색)이 그대로 남아있어 주변 패널과 확연히 떠 보였다. 그리드도 같이 어둡게
+    // 맞춘다 — theme.color.background.sunken과 같은 "패널보다 가라앉은 영역" 색을 써서
+    // OperationsMapView의 지도 캔버스 기본 배경과 톤을 맞췄다.
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf2f2f2);
+    scene.background = new THREE.Color(theme.color.background.sunken);
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.01, 100);
     camera.position.set(1.1, 0.85, 1.1);
     camera.lookAt(0, 0, 0);
 
+    // 조명은 흰색·세기 그대로 유지한다(조명 자체의 색은 배경과 무관 — 재질에 반사돼
+    // 보이는 색이 중요하다). 그리드 선만 어두운 배경에서 은은하게 보이는 톤으로 낮췄다.
     scene.add(new THREE.AmbientLight(0xffffff, 0.7));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
     dirLight.position.set(2, 3, 1.5);
     scene.add(dirLight);
-    scene.add(new THREE.GridHelper(1.6, 8, 0xbbbbbb, 0xdddddd));
+    scene.add(new THREE.GridHelper(1.6, 8, theme.color.border.default, theme.color.border.subtle));
 
     ctxRef.current = { renderer, scene, camera, droneGroup: null, guides: null };
     renderer.render(scene, camera);

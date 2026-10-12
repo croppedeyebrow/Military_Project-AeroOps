@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useApproveCommand, useCancelCommand, usePendingCommandsQuery } from "../../api/commands";
+import { theme } from "../../styles/theme";
 
 interface ApprovalQueueProps {
   selectedCommandId: string | null;
@@ -44,9 +45,12 @@ export function ApprovalQueue({ selectedCommandId, onSelectCommand }: ApprovalQu
             style={{
               padding: "0.4rem",
               cursor: "pointer",
-              background: selectedCommandId === command.command_id ? "#e0f0ff" : "transparent",
+              // AssetList.tsx와 같은 버그(2026-10-12 스크린샷으로 발견) — 다크 테마에서
+              // 밝은 배경+밝은 글자가 겹쳐 안 보이던 것을 같은 방식으로 고친다.
+              background:
+                selectedCommandId === command.command_id ? "rgba(34, 211, 238, 0.18)" : "transparent",
               fontSize: "0.9em",
-              borderBottom: "1px solid #eee",
+              borderBottom: `1px solid ${theme.color.border.subtle}`,
             }}
           >
             <div>{command.command_id}</div>

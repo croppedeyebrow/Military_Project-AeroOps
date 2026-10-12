@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { theme } from "../../styles/theme";
 import { forwardVector, headingGroundVector } from "./attitude";
 import type { Attitude } from "./attitude";
 
@@ -18,11 +19,12 @@ export function buildDirectionGuides(): {
   const group = new THREE.Group();
   group.name = "direction-guides";
 
+  // theme.color.accent(네온 시안)로 통일 — 기존 0x3388ff는 다크 테마 전환 전 accent색.
   const groundArrow = new THREE.ArrowHelper(
     headingGroundVector(0),
     ORIGIN,
     0.6,
-    0x3388ff,
+    theme.color.accent,
     0.12,
     0.08
   );

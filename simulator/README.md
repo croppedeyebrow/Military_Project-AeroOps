@@ -46,9 +46,28 @@ python -m simulator.main run --sink stdout --no-real-time --duration-sec 10
   역순·결측·GPS 점프·통신단절·배터리 급락) + 연속/확률 방식 2종(패킷 손실률, 재정렬 윈도우).
   동일 seed + 동일 파라미터는 항상 동일한 sequence gap을 만든다
   (`faults.compute_sequence_gaps`로 확인 가능).
-- 기체 측 Command 처리: [`simulator/simulator/command_handler.py`](simulator/command_handler.py) —
-  ACK, 실행 결과(성공/실패/타임아웃), `last_processed_command_id` 추적. 실제 `/commands` API가
-  없으므로(3단계 보정 이후) 아직 CLI에 연결되어 있지는 않다 — 단위 테스트로만 검증됨.
+- 기체 측 Command 처리(순수 로직, CLI 미연결): [`simulator/simulator/command_handler.py`](simulator/command_handler.py) —
+  `CommandEnvelope` 하나를 "받았을 때 어떻게 반응하는가"만 독립적으로 시뮬레이션. 단위
+  테스트로만 검증됨 — 아래 `device_loop.py`가 실제로 쓰이는 쪽이다.
+- 기체 측 Command **실시간 반응**(실제 `/commands` API 연결): [`simulator/simulator/device_loop.py`](simulator/device_loop.py)
+  — `--real-time`이고 장애 주입이 없을 때 자동으로 켜지는 모드(실행 시 로그에
+  `mode=reactive`로 표시). 매 틱 `GET /commands?status=DISPATCHED`를 조회해 내 드론에
+  해당하는 명령을 ACK→EXECUTING까지 보고하고, 실제로 비행 경로를 바꾼다:
+  - `RTL`: 본부(`generator.BASE_LAT`/`BASE_LON` — 판교) 좌표로 직선 비행 후 그 자리에서
+    대기. 도착하면 명령이 `SUCCEEDED`로 보고된다.
+  - `MOVE_TO`: payload의 `target_latitude`/`target_longitude`/(선택)`target_altitude_m`
+    으로 비행. 좌표가 없으면 즉시 `FAILED`.
+  - `LOITER`: 즉시 현재 위치에서 정지.
+  - `ARM`/`DISARM`: DISARM되면 다음 ARM까지 제자리에 고정(움직이지 않음).
+  - `SET_ALTITUDE`: 기체가 이미 임무경로를 벗어난 상태(RTL/MOVE_TO/LOITER 이후)일 때만
+    적용 — 아직 원래 시나리오(SCENARIO) 비행 중이면 즉시 `FAILED`.
+  - `SET_SPEED`: 이후 이동(RETURNING/MOVING_TO) 속도를 바꾼다.
+  - 한 기체가 이미 처리 중인 명령이 있으면 새 명령은 그게 끝날 때까지 기다린다(동시에
+    두 개를 처리하지 않는다).
+  - 장애 주입(`--faults`/`--reorder-window`)과는 같이 쓸 수 없다(장애 주입은 "미리
+    계산해둔 전체 시퀀스를 변형"하는 방식이라 "한 틱씩 계산하며 명령에 반응하는" 구조와
+    전제가 다르다) — 그 경우 기존 사전계산 경로로 자동 전환되고(`mode=precomputed`),
+    명령에는 반응하지 않는다.
 
 2단계에서는 backend에 아직 `POST /telemetry`가 없으므로 `--sink stdout`으로 독립 검증한다.
 3단계 이후 `--sink http`(기본값)로 실제 수집 API에 연결한다.

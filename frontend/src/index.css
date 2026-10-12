@@ -1,8 +1,15 @@
+/*
+ * 전역 베이스 스타일. 색상 값은 `src/styles/theme.ts`의 같은 이름 토큰과 반드시
+ * 같게 유지한다 — CSS는 그 TS 객체를 import할 수 없어서(별도 CSS-in-JS 도구 없이는)
+ * 값을 여기 한 번 더 적어야 한다. 바꿀 땐 theme.ts와 이 파일 둘 다 고친다.
+ */
 :root {
-  color-scheme: light dark;
+  color-scheme: dark; /* 다크 테마 전용 — 사용자 브라우저가 light를 강제하지 않게 명시 */
   font-family: system-ui, -apple-system, sans-serif;
 }
 
 body {
   margin: 0;
+  background: #0b1420; /* theme.color.background.page */
+  color: #e6edf3; /* theme.color.text.primary */
 }

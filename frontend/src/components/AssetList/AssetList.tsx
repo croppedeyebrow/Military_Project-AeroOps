@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useOperationsStore } from "../../store/useOperationsStore";
+import { theme } from "../../styles/theme";
 import { classifyFreshness, type AssetFreshness, type TelemetryFrame } from "../../types/telemetry";
 
 const FRESHNESS_LABEL: Record<AssetFreshness, string> = {
@@ -8,10 +9,13 @@ const FRESHNESS_LABEL: Record<AssetFreshness, string> = {
   disconnected: "단절",
 };
 
+// 이 파일에 독립적으로 들어있던 4번째 FRESHNESS_COLOR 사본이었다 — Unit 1에서
+// markerElement.ts/App.tsx/AlertPanel.tsx 3곳만 토큰에 연결하고 이 파일을 놓쳤다.
+// 지금 발견해서 같이 고친다.
 const FRESHNESS_COLOR: Record<AssetFreshness, string> = {
-  live: "seagreen",
-  stale: "goldenrod",
-  disconnected: "gray",
+  live: theme.color.status.success,
+  stale: theme.color.status.warning,
+  disconnected: theme.color.status.neutral,
 };
 
 /** 자산(드론) 목록, 검색, 상태 필터. 4단계. */
@@ -73,7 +77,17 @@ export function AssetList() {
             style={{
               padding: "0.5rem",
               cursor: "pointer",
-              background: selectedAssetId === asset.asset_id ? "#e0f0ff" : "transparent",
+              // 버그 수정(2026-10-12): 다크 테마 전환 전엔 연한 하늘색(#e0f0ff) 배경 +
+              // 어두운 기본 글자색이라 괜찮았지만, 전역 글자색이 밝은 색(#e6edf3)으로
+              // 바뀌면서 밝은 배경 위에 밝은 글씨가 겹쳐 안 보이게 됐다(실제 스크린샷으로
+              // 확인). 선택 배경은 accent 색을 낮은 불투명도로 깔아 어두운 배경에서도
+              // 글자色 대비가 유지되게 한다.
+              background:
+                selectedAssetId === asset.asset_id ? "rgba(34, 211, 238, 0.18)" : "transparent",
+              borderLeft:
+                selectedAssetId === asset.asset_id
+                  ? `3px solid ${theme.color.accent}`
+                  : "3px solid transparent",
               display: "flex",
               alignItems: "center",
               gap: "0.5rem",

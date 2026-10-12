@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { useBuildInfoQuery, useDeploymentQuery } from "../../api/deployments";
+import { theme } from "../../styles/theme";
 import { formatDeploymentLabel } from "./format";
 
 interface Props {
@@ -45,11 +46,13 @@ export function DeploymentBadge({ deploymentId }: Props) {
   );
 }
 
+// 스크린샷(2026-10-12)에선 글자가 안 보이는 버그는 아니었다(배경·글자색을 항상 같이
+// 지정해서) — 다만 다크 UI 안에서 밝은 알약 모양으로 튀어 보여 톤만 맞춘다.
 const badgeStyle: CSSProperties = {
   padding: "0.15rem 0.5rem",
-  borderRadius: "4px",
-  background: "#eee",
-  color: "#555",
+  borderRadius: theme.radius.sm,
+  background: theme.color.background.badge,
+  color: theme.color.text.secondary,
   fontSize: "0.8rem",
   fontFamily: "monospace",
 };

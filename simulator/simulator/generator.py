@@ -15,9 +15,13 @@ import numpy as np
 from simulator.contracts.telemetry import FlightMode, TelemetryFrame
 from simulator.scenarios import CircleScenario, Scenario, StraightScenario, Waypoint, WaypointScenario
 
-# 기본 편대 기준점(가상 좌표 — 실제 지명과 무관).
-BASE_LAT = 37.5
-BASE_LON = 127.0
+# 기본 편대 기준점 — 사용자 결정(2026-10-12): 가상의 "본부"를 성남 판교 지역에 둔다.
+# 판교테크노밸리역 인근 좌표. 프론트 지도의 초기 중심(`OperationsMapView.tsx`
+# `DEFAULT_CENTER`)과 "본부" 마커(`BASE_ORIGIN`, `OperationsMapView.tsx`) 둘 다
+# 이 값과 일치시켜야 한다 — 세 군데가 어긋나면 "기체가 본부에서 출발했다"는 그림이
+# 깨진다.
+BASE_LAT = 37.3947
+BASE_LON = 127.1112
 
 BATTERY_DRAIN_PCT_PER_HOUR = 6.0
 RSSI_BASE_DBM = -60.0

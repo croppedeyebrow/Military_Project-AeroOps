@@ -8,8 +8,13 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d
+    # 호스트 포트는 5433 — 5432는 로컬 머신에 흔히 이미 떠 있는 네이티브 Postgres
+    # 설치본과 자주 충돌한다(개발자 개인 환경 문제). 컨테이너 내부 포트(5432)와
+    # api 서비스가 쓰는 내부 네트워크 주소(postgres:5432, 아래 DATABASE_URL)는 호스트
+    # 포트 매핑과 무관하므로 그대로 둔다 — 바뀌는 건 호스트에서 `localhost:????`로
+    # 접속할 때 쓰는 포트뿐이다(backend/.env.example도 5433으로 맞춰뒀다).
     ports:
-      - "5432:5432"
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aeroops}"]
       interval: 5s

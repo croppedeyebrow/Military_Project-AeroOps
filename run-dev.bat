@@ -1,12 +1,18 @@
 @echo off
-rem run-dev.bat - backend+frontend local dev launcher.
+rem run-dev.bat - backend+frontend+simulator local dev launcher.
 rem
 rem Purpose: the repo root README documents two ways to run this project locally -
 rem a full "docker compose up --build" (rebuilds images every time, slow to iterate
 rem on) and a faster per-service path (Postgres/Redis in Docker, backend/frontend run
 rem directly with --reload/HMR). This script automates that second, faster path
 rem exactly as backend/README.md and frontend/README.md describe it, so day-to-day
-rem dev doesn't need four manual terminals.
+rem dev doesn't need five manual terminals.
+rem
+rem Also starts the simulator (scripts\run-simulator.bat): without it the UI has
+rem nothing to show - no assets, no map markers, no telemetry history - which makes
+rem it impossible to actually look at what a feature does. 8 hours real-time is
+rem long enough to leave running for a dev session; stop it by closing its window
+rem if you don't want it.
 rem
 rem Why two separate "start" windows instead of one script blocking on both: backend
 rem and frontend are long-running dev servers with their own live logs (uvicorn
@@ -22,12 +28,13 @@ setlocal enabledelayedexpansion
 set "ROOT=%~dp0"
 cd /d "%ROOT%"
 
-echo [1/5] Checking .env files (copied from .env.example if missing)...
+echo [1/6] Checking .env files (copied from .env.example if missing)...
 if not exist "backend\.env" copy "backend\.env.example" "backend\.env" >nul
 if not exist "frontend\.env" copy "frontend\.env.example" "frontend\.env" >nul
 if not exist "infra\.env" copy "infra\.env.example" "infra\.env" >nul
+if not exist "simulator\.env" copy "simulator\.env.example" "simulator\.env" >nul
 
-echo [2/5] Checking Docker...
+echo [2/6] Checking Docker...
 docker info >nul 2>&1
 if errorlevel 1 (
     echo Docker daemon not responding - attempting to start Docker Desktop...
@@ -55,7 +62,7 @@ if errorlevel 1 (
     echo Docker is ready.
 )
 
-echo [3/5] Starting Postgres/Redis (Docker) - not api/web, those run locally below...
+echo [3/6] Starting Postgres/Redis (Docker) - not api/web, those run locally below...
 docker compose -f infra\docker-compose.yml --env-file infra\.env up -d postgres redis
 if errorlevel 1 (
     echo.
@@ -63,14 +70,22 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [4/5] Launching backend (uvicorn --reload) in a new window...
+echo [4/6] Launching backend (uvicorn --reload) in a new window...
 rem Each step (venv setup, migrate, run) lives in scripts\run-backend.bat instead
 rem of being inlined here - see that file's header comment for why (nested-quote
 rem bug when the repo path contains spaces).
 start "AeroOps Backend" cmd /k "%ROOT%scripts\run-backend.bat"
 
-echo [5/5] Launching frontend (yarn dev) in a new window...
+echo [5/6] Launching frontend (yarn dev) in a new window...
 start "AeroOps Frontend" cmd /k "%ROOT%scripts\run-frontend.bat"
+
+echo [6/6] Launching simulator (10 drones, real-time) in a new window...
+rem A short pause before the simulator starts posting - purely cosmetic (reduces
+rem "connection refused" lines while uvicorn is still starting up). HttpSink
+rem (simulator/simulator/sinks.py) tolerates the backend not being ready yet, so
+rem this is not required for correctness, only for a quieter first few seconds.
+timeout /t 5 /nobreak >nul
+start "AeroOps Simulator" cmd /k "%ROOT%scripts\run-simulator.bat"
 
 echo.
 echo Backend:  http://localhost:8000/docs

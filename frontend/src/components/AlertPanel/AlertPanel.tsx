@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { useAcknowledgeAlert, useResolveAlert } from "../../api/alerts";
 import { useOperationsStore } from "../../store/useOperationsStore";
+import { theme } from "../../styles/theme";
 import type { Alert } from "../../types/alert";
 
 const SEVERITY_COLOR: Record<string, string> = {
-  WARNING: "goldenrod",
-  CRITICAL: "crimson",
+  WARNING: theme.color.status.warning,
+  CRITICAL: theme.color.status.danger,
 };
 
 const ALERT_TYPE_LABEL: Record<string, string> = {

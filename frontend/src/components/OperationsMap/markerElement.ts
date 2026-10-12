@@ -1,3 +1,4 @@
+import { theme } from "../../styles/theme";
 import { classifyFreshness, type AssetFreshness, type TelemetryFrame } from "../../types/telemetry";
 import { formatElapsed } from "./format";
 
@@ -7,10 +8,13 @@ import { formatElapsed } from "./format";
  * 향하고, `rotate()`가 시계방향이라 나침반 방향(0=N,90=E,시계방향)과 그대로 맞는다.
  */
 
+// disconnected는 `theme.color.status.danger`(빨강)가 아니라 `neutral`(회색)을 쓴다 —
+// `theme.ts` 상단 주석 참고: 기체 하나가 조용해진 것과 내 WS 연결이 끊긴 것은 심각도가
+// 다르다.
 export const FRESHNESS_COLOR: Record<AssetFreshness, string> = {
-  live: "#2e8b57",
-  stale: "#daa520",
-  disconnected: "#808080",
+  live: theme.color.status.success,
+  stale: theme.color.status.warning,
+  disconnected: theme.color.status.neutral,
 };
 
 export function createMarkerElement(): HTMLDivElement {

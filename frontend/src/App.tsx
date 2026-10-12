@@ -12,6 +12,7 @@ import { ReplayScreen } from "./components/ReplayTimeline/ReplayScreen";
 import { ResyncBanner } from "./components/ResyncBanner/ResyncBanner";
 import { Vehicle3DViewer } from "./components/Vehicle3DViewer/Vehicle3DViewer";
 import { useOperationsStore, type ConnectionStatus } from "./store/useOperationsStore";
+import { theme } from "./styles/theme";
 import { useTelemetryStream } from "./ws/useTelemetryStream";
 
 const CONNECTION_LABEL: Record<ConnectionStatus, string> = {
@@ -21,11 +22,14 @@ const CONNECTION_LABEL: Record<ConnectionStatus, string> = {
   disconnected: "연결 끊김",
 };
 
+// WS 연결 끊김은 `theme.color.status.danger`(빨강) — 기체 신선도의 "disconnected"
+// (neutral/회색, `markerElement.ts` 참고)와는 다른 심각도다: 이건 "내 브라우저가
+// 서버와 완전히 끊겼다"는 즉시 조치 필요 상태.
 const CONNECTION_COLOR: Record<ConnectionStatus, string> = {
-  connecting: "goldenrod",
-  connected: "seagreen",
-  reconnecting: "goldenrod",
-  disconnected: "crimson",
+  connecting: theme.color.status.warning,
+  connected: theme.color.status.success,
+  reconnecting: theme.color.status.warning,
+  disconnected: theme.color.status.danger,
 };
 
 type RightTab = "detail" | "command";

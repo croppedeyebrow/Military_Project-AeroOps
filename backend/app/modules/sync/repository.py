@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.metrics import sync_performed_total, sync_sequence_gap
 from app.modules.command.models import Command
 from app.modules.command.state_machine import TERMINAL_STATUSES as TERMINAL_COMMAND_STATUSES
 from app.modules.deployment.repository import append_event_log
@@ -112,6 +113,8 @@ def perform_sync(db: Session, asset_id: str, request: SyncRequest) -> SyncDecisi
             "snapshot_reissued": snapshot_reissued,
         },
     )
+    sync_performed_total.labels(anomaly=anomaly or "none").inc()
+    sync_sequence_gap.observe(gap_count)
 
     return SyncDecision(
         server_last_sequence_no=server_max_seq,

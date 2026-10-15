@@ -18,6 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.metrics import command_created_total, command_status_transition_total
 from app.modules.command.models import Command, CommandEvent
 from app.modules.command.state_machine import CANCELLABLE_STATUSES, assert_transition_allowed
 from app.modules.deployment.repository import append_event_log
@@ -140,6 +141,10 @@ def create_command_idempotent(db: Session, envelope: CommandEnvelope) -> Command
         correlation_id=command.id,
         payload={"command_id": command.id, "target_asset_id": command.target_asset_id},
     )
+    # event_log와 같은 이유로 commit 이후에 집계한다 — 메트릭 기록 실패가 명령 생성
+    # 자체를 롤백시키면 안 된다(실제로 prometheus_client의 Counter.inc()는 거의 실패하지
+    # 않지만, "핵심 쓰기 트랜잭션 vs 부가 관측 기록"의 순서 원칙은 일관되게 지킨다).
+    command_created_total.labels(command_type=envelope.command_type).inc()
     return CommandCreationResult(command=command, is_new=True)
 
 
@@ -223,6 +228,7 @@ def _transition(
             "actor": actor,
         },
     )
+    command_status_transition_total.labels(status=target).inc()
     return command
 
 

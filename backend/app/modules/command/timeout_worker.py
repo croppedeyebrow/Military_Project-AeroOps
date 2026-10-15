@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select
 
+from app.core.metrics import command_timeout_swept_total
 from app.db.base import SessionLocal
 from app.modules.command.models import Command
 from app.modules.command.repository import force_timeout
@@ -39,6 +40,11 @@ def sweep_timed_out_commands() -> int:
         expired = list(db.execute(stmt).scalars().all())
         for command in expired:
             force_timeout(db, command)
+        # `_transition`이 이미 범용 `command_status_transition_total{status="TIMED_OUT"}`
+        # 를 올리지만, 그건 승인 시점에 즉시 만료 판정되는 경우(approve_and_dispatch)와
+        # 구분이 안 된다. 이 카운터는 "방치돼 워커가 쓸어간" 것만 따로 센다 — 운영상
+        # "승인이 늦어서 죽는 명령이 얼마나 되는지"를 보는 데 의미가 다르다.
+        command_timeout_swept_total.inc(len(expired))
         return len(expired)
 
 

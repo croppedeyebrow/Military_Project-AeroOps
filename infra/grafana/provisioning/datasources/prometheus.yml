@@ -6,3 +6,7 @@ datasources:
     access: proxy
     url: http://prometheus:9090
     isDefault: true
+    # uid를 고정해둔다 — 명시하지 않으면 Grafana가 매번 자동 생성하는데, 대시보드
+    # JSON(aeroops-overview.json)의 패널들이 이 uid를 참조하므로 재시작/재프로비저닝
+    # 때마다 값이 바뀌면 패널이 데이터소스를 못 찾게 된다.
+    uid: prometheus

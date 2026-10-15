@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.metrics import alert_raised_total
 from app.modules.alert.models import Alert
 from app.modules.alert.rules import RULE_VERSION, evaluate_all
 from app.modules.deployment.repository import append_event_log
@@ -75,6 +76,7 @@ def evaluate_and_raise_alerts(db: Session, frame: TelemetryFrame) -> list[Alert]
                     "rule_version": alert.rule_version,
                 },
             )
+            alert_raised_total.labels(alert_type=alert.alert_type, severity=alert.severity).inc()
     return created
 
 

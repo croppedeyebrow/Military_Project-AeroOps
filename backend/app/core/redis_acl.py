@@ -15,8 +15,10 @@ stream 쓰기가 거부된다". 별도 `redis.conf`/ACL 파일을 인프라에 �
 운영 환경의 ACL 관리 방식을 재검토한다.
 """
 import logging
+from typing import Any
 
 import redis.asyncio as redis
+from redis.exceptions import ConnectionError as RedisConnectionError
 
 from app.core.config import get_settings
 from app.core.redis import COMMAND_REDIS_USERNAME, TELEMETRY_REDIS_USERNAME, get_redis
@@ -55,3 +57,22 @@ async def ensure_channel_acl_users(redis_client: redis.Redis | None = None) -> N
     logger.info(
         "Redis ACL 사용자 등록 완료: %s, %s", TELEMETRY_REDIS_USERNAME, COMMAND_REDIS_USERNAME
     )
+
+
+async def xadd_with_acl_retry(
+    redis_client: redis.Redis, stream: str, fields: dict[str, Any]
+) -> str:
+    """`AuthenticationError`(ConnectionError 하위)면 ACL을 재등록하고 한 번만 재시도하는 xadd.
+
+    이 프로젝트의 dev `docker-compose`는 Redis에 영속 볼륨을 붙이지 않는다 — 그래서
+    `docker stop`/`start`만으로도 Redis가 완전히 빈 상태로 돌아오고, 앱 시작 시 1회만
+    등록한 `telemetry`/`command` ACL 사용자가 함께 사라진다. 7단계 장애 시험
+    (2026-10-16)에서 Redis 재시작 이후 모든 텔레메트리 수신이 영구히 `AuthenticationError`로
+    막히는 것을 실제로 확인했다 — 이 함수가 그 복구 경로다(재등록은 `reset`으로 매번
+    같은 최종 상태를 만들어 멱등하므로 동시에 여러 요청이 재시도해도 안전하다).
+    """
+    try:
+        return await redis_client.xadd(stream, fields)
+    except RedisConnectionError:
+        await ensure_channel_acl_users()
+        return await redis_client.xadd(stream, fields)

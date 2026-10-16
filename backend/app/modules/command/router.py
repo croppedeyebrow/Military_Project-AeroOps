@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.redis import get_command_redis
+from app.core.redis_acl import xadd_with_acl_retry
 from app.db.base import get_db
 from app.modules.audit.repository import record_audit_event
 from app.modules.command.models import Command
@@ -156,7 +157,8 @@ async def approve_command_endpoint(
     if command.status == "DISPATCHED":
         try:
             redis_client = get_command_redis()
-            await redis_client.xadd(
+            await xadd_with_acl_retry(
+                redis_client,
                 COMMAND_STREAM,
                 {"command_id": command.id, "event_type": "DISPATCHED"},
             )

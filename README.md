@@ -6,12 +6,16 @@
 배포 버전과 운용 로그를 연결한다. 자세한 내용은
 [`docs/planning/00_종합_기획서.md`](docs/planning/00_종합_기획서.md) 참고.
 
-> 현재 상태: **6단계 — 선택 기체 3D 자세 뷰어 구현 완료(모델은 placeholder).**
-> 선택한 기체 하나만 Three.js로 표현하고 roll·pitch·yaw를 실시간 쿼터니언으로
-> 반영하며(좌표축 규칙: [`docs/decisions/0003-vehicle-3d-axis-convention.md`](docs/decisions/0003-vehicle-3d-axis-convention.md)),
-> 진행방향·기수방향 보조선과 통신 신선도·최근 연관 명령을 함께 표시한다. 실제 GLB
-> 드론 모델은 아직 적용하지 않았다(사용자 결정으로 추후 교체 예정) — 상세:
-> [`docs/dev_history/06_단계_3D상세뷰어.md`](docs/dev_history/06_단계_3D상세뷰어.md).
+> 현재 상태: **7단계 — 이벤트 재생·배포 추적·관측성 완료.**
+> 운용 세션·배포 버전을 등록하고 ingestion/command/alert/sync 4채널을 append-only
+> `event_log`로 남기며, 구간·배속(0.5×/1×/2×) 재생 화면(`ReplayTimeline`/`TelemetryChart`)과
+> Prometheus 커스텀 메트릭·Grafana 대시보드(`infra/grafana/`)를 갖췄다. 10대×1Hz 22분
+> 부하 시험(처리 지연 p95 ~240ms, 병목 없음)과 Redis/Postgres 중단→복구 장애 시험을
+> 거쳐, 장애 시험에서 발견한 "Redis 재시작 시 ACL 사용자 소실로 텔레메트리 수신이
+> 영구 중단되는" 버그를 수정했다 — 상세:
+> [`docs/dev_history/07_단계_이력재생_관측성.md`](docs/dev_history/07_단계_이력재생_관측성.md).
+> 6단계에서 선택 기체 3D 자세 뷰어(Three.js, 모델은 placeholder — 상세:
+> [`docs/dev_history/06_단계_3D상세뷰어.md`](docs/dev_history/06_단계_3D상세뷰어.md)),
 > 5단계에서 임무·경보 관리와 명령 승인/취소/타임아웃 상태 머신(`PENDING_APPROVAL →
 > APPROVED → DISPATCHED → ACKNOWLEDGED → EXECUTING →
 > SUCCEEDED/FAILED/TIMED_OUT/CANCELLED`), 4단계에서 `/ws/operations` 실시간 2D

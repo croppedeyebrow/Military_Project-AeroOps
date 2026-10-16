@@ -11,6 +11,7 @@ from fastapi import APIRouter, status
 
 from app.core.metrics import telemetry_received_total
 from app.core.redis import get_telemetry_redis
+from app.core.redis_acl import xadd_with_acl_retry
 from app.modules.ingestion.streams import TELEMETRY_STREAM
 from app.schemas.telemetry import TelemetryFrame
 
@@ -27,7 +28,9 @@ async def ingest_telemetry(frame: TelemetryFrame) -> dict:
     received_frame = frame.model_copy(update={"received_at": datetime.now(timezone.utc)})
 
     redis_client = get_telemetry_redis()
-    await redis_client.xadd(TELEMETRY_STREAM, {"payload": received_frame.model_dump_json()})
+    await xadd_with_acl_retry(
+        redis_client, TELEMETRY_STREAM, {"payload": received_frame.model_dump_json()}
+    )
 
     telemetry_received_total.labels(asset_id=frame.asset_id).inc()
 

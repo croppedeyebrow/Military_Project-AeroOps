@@ -10,10 +10,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from datetime import datetime, timezone
 
 import redis.asyncio as redis
+from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import ResponseError
 
 from app.core.metrics import (
@@ -22,6 +24,7 @@ from app.core.metrics import (
     telemetry_processing_latency_seconds,
 )
 from app.core.redis import get_telemetry_redis
+from app.core.redis_acl import ensure_channel_acl_users
 from app.db.base import SessionLocal
 from app.modules.alert.repository import evaluate_and_raise_alerts
 from app.modules.alert.schemas import AlertOut
@@ -36,6 +39,9 @@ logger = logging.getLogger(__name__)
 
 READ_COUNT = 50
 BLOCK_MS = 5000
+# Redis 재연결 실패 시 재시도 전 대기 — 재시작 직후 바로 재시도하면 아직 뜨지 않은
+# Redis에 계속 몰아쳐 로그만 쌓인다(`run_consumer_loop` 참고).
+RECONNECT_BACKOFF_S = 2.0
 
 
 async def ensure_consumer_group(redis_client: redis.Redis | None = None) -> None:
@@ -104,32 +110,52 @@ def _handle_message(payload: str) -> list[dict]:
 
 
 async def run_consumer_loop(redis_client: redis.Redis | None = None) -> None:
-    """`CancelledError`(앱 종료)로 멈출 때까지 스트림을 계속 소비한다."""
+    """`CancelledError`(앱 종료)로 멈출 때까지 스트림을 계속 소비한다.
+
+    `xreadgroup`/`xack` 같은 Redis 레벨 호출이 예외를 던지면(기존 코드는 이를 전혀
+    잡지 않았다) 이 루프를 감싸는 asyncio task가 그대로 끝나버려, 프로세스가 재시작될
+    때까지 텔레메트리 소비가 영구히 멈춘다 — 7단계 장애 시험(2026-10-16)에서 Redis를
+    `docker stop`/`start`로 재시작한 뒤 이 상태가 실제로 재현됐다(이 dev compose는
+    Redis에 영속 볼륨이 없어, 재시작마다 ACL 사용자·consumer group이 함께 사라진다).
+    그래서 루프 본문 전체를 try/except로 감싸, Redis 쪽 예외는 ACL·consumer group을
+    재등록하고 계속 돌게 한다 — 메시지 하나의 처리 실패(아래 안쪽 try/except)와는
+    별개의 복구 경로다.
+    """
     client = redis_client or get_telemetry_redis()
     await ensure_consumer_group(client)
 
     while True:
-        response = await client.xreadgroup(
-            groupname=CONSUMER_GROUP,
-            consumername=CONSUMER_NAME,
-            streams={TELEMETRY_STREAM: ">"},
-            count=READ_COUNT,
-            block=BLOCK_MS,
-        )
-        if not response:
-            continue
+        try:
+            response = await client.xreadgroup(
+                groupname=CONSUMER_GROUP,
+                consumername=CONSUMER_NAME,
+                streams={TELEMETRY_STREAM: ">"},
+                count=READ_COUNT,
+                block=BLOCK_MS,
+            )
+            if not response:
+                continue
 
-        for _stream_name, messages in response:
-            for message_id, fields in messages:
-                payload = fields.get("payload")
-                try:
-                    if payload is not None:
-                        messages = await asyncio.to_thread(_handle_message, payload)
-                        broadcaster = get_broadcaster()
-                        for message in messages:
-                            broadcaster.publish(message)
-                except Exception:  # noqa: BLE001 — 한 메시지 실패로 스트림 전체가 막히면 안 된다
-                    telemetry_consumer_error_total.inc()
-                    logger.exception("텔레메트리 메시지 처리 실패: message_id=%s", message_id)
-                finally:
-                    await client.xack(TELEMETRY_STREAM, CONSUMER_GROUP, message_id)
+            for _stream_name, stream_messages in response:
+                for message_id, fields in stream_messages:
+                    payload = fields.get("payload")
+                    try:
+                        if payload is not None:
+                            broadcast_messages = await asyncio.to_thread(_handle_message, payload)
+                            broadcaster = get_broadcaster()
+                            for message in broadcast_messages:
+                                broadcaster.publish(message)
+                    except Exception:  # noqa: BLE001 — 한 메시지 실패로 스트림 전체가 막히면 안 된다
+                        telemetry_consumer_error_total.inc()
+                        logger.exception("텔레메트리 메시지 처리 실패: message_id=%s", message_id)
+                    finally:
+                        await client.xack(TELEMETRY_STREAM, CONSUMER_GROUP, message_id)
+        except (RedisConnectionError, ResponseError) as exc:
+            telemetry_consumer_error_total.inc()
+            logger.warning(
+                "Redis 스트림 연결 실패 — ACL·consumer group 재등록 후 재시도: %s", exc
+            )
+            await asyncio.sleep(RECONNECT_BACKOFF_S)
+            with contextlib.suppress(Exception):
+                await ensure_channel_acl_users()
+                await ensure_consumer_group(client)

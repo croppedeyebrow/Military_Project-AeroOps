@@ -1,0 +1,350 @@
+{
+  "client_to_server": "없음(연결 종료 감지용 receive만 있음)",
+  "endpoint": "/ws/operations",
+  "schemas": {
+    "AlertOut": {
+      "properties": {
+        "acknowledged_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Acknowledged At"
+        },
+        "acknowledged_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Acknowledged By"
+        },
+        "alert_type": {
+          "title": "Alert Type",
+          "type": "string"
+        },
+        "asset_id": {
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "evidence": {
+          "title": "Evidence",
+          "type": "object"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "resolved_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Resolved At"
+        },
+        "resolved_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Resolved By"
+        },
+        "rule_version": {
+          "title": "Rule Version",
+          "type": "string"
+        },
+        "severity": {
+          "title": "Severity",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "triggered_at": {
+          "format": "date-time",
+          "title": "Triggered At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "asset_id",
+        "alert_type",
+        "severity",
+        "rule_version",
+        "evidence",
+        "status",
+        "triggered_at",
+        "acknowledged_at",
+        "acknowledged_by",
+        "resolved_at",
+        "resolved_by"
+      ],
+      "title": "AlertOut",
+      "type": "object"
+    },
+    "TelemetryFrame": {
+      "$defs": {
+        "FlightMode": {
+          "description": "`docs/api/telemetry_frame_dictionary.md`에 정의된 비행 모드.",
+          "enum": [
+            "MANUAL",
+            "AUTO",
+            "GUIDED",
+            "LOITER",
+            "RTL",
+            "LANDED"
+          ],
+          "title": "FlightMode",
+          "type": "string"
+        }
+      },
+      "properties": {
+        "altitude_m": {
+          "maximum": 10000.0,
+          "minimum": -500.0,
+          "title": "Altitude M",
+          "type": "number"
+        },
+        "asset_id": {
+          "minLength": 1,
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "battery_pct": {
+          "maximum": 100.0,
+          "minimum": 0.0,
+          "title": "Battery Pct",
+          "type": "number"
+        },
+        "correlation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Correlation Id"
+        },
+        "deployment_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Deployment Id"
+        },
+        "event_time": {
+          "format": "date-time",
+          "title": "Event Time",
+          "type": "string"
+        },
+        "flight_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FlightMode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "heading_deg": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 360.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Heading Deg"
+        },
+        "latitude": {
+          "maximum": 90.0,
+          "minimum": -90.0,
+          "title": "Latitude",
+          "type": "number"
+        },
+        "longitude": {
+          "maximum": 180.0,
+          "minimum": -180.0,
+          "title": "Longitude",
+          "type": "number"
+        },
+        "mission_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mission Id"
+        },
+        "operation_session_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Operation Session Id"
+        },
+        "pitch_deg": {
+          "anyOf": [
+            {
+              "maximum": 90.0,
+              "minimum": -90.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pitch Deg"
+        },
+        "received_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Received At"
+        },
+        "roll_deg": {
+          "anyOf": [
+            {
+              "maximum": 180.0,
+              "minimum": -180.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Roll Deg"
+        },
+        "rssi_dbm": {
+          "anyOf": [
+            {
+              "maximum": 0.0,
+              "minimum": -130.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rssi Dbm"
+        },
+        "schema_version": {
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sequence_no": {
+          "minimum": 0,
+          "title": "Sequence No",
+          "type": "integer"
+        },
+        "speed_mps": {
+          "anyOf": [
+            {
+              "maximum": 150.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speed Mps"
+        },
+        "yaw_deg": {
+          "anyOf": [
+            {
+              "maximum": 180.0,
+              "minimum": -180.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Yaw Deg"
+        }
+      },
+      "required": [
+        "asset_id",
+        "event_time",
+        "sequence_no",
+        "latitude",
+        "longitude",
+        "altitude_m",
+        "battery_pct"
+      ],
+      "title": "TelemetryFrame",
+      "type": "object"
+    }
+  },
+  "server_to_client": {
+    "alert": {
+      "alert": "AlertOut",
+      "type": "alert"
+    },
+    "snapshot": {
+      "alerts": "AlertOut[] (status=OPEN)",
+      "assets": "TelemetryFrame[] (기체별 최신 상태)",
+      "type": "snapshot"
+    },
+    "update": {
+      "asset": "TelemetryFrame",
+      "type": "update"
+    }
+  }
+}

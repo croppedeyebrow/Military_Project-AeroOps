@@ -1,0 +1,345 @@
+{
+  "command": {
+    "consumer_group": "command-processors",
+    "entry_fields": {
+      "command_id": "str",
+      "event_type": "DISPATCHED"
+    },
+    "envelope_schema": {
+      "properties": {
+        "approved_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approved By"
+        },
+        "command_id": {
+          "minLength": 1,
+          "title": "Command Id",
+          "type": "string"
+        },
+        "command_type": {
+          "minLength": 1,
+          "title": "Command Type",
+          "type": "string"
+        },
+        "deployment_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Deployment Id"
+        },
+        "expected_asset_state_version": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Asset State Version"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "title": "Expires At",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "minLength": 1,
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "issued_at": {
+          "format": "date-time",
+          "title": "Issued At",
+          "type": "string"
+        },
+        "payload": {
+          "title": "Payload",
+          "type": "object"
+        },
+        "requested_by": {
+          "minLength": 1,
+          "title": "Requested By",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "target_asset_id": {
+          "minLength": 1,
+          "title": "Target Asset Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "command_id",
+        "idempotency_key",
+        "target_asset_id",
+        "command_type",
+        "requested_by",
+        "issued_at",
+        "expires_at"
+      ],
+      "title": "CommandEnvelope",
+      "type": "object"
+    },
+    "producer_user": "command",
+    "stream": "aeroops:command:events"
+  },
+  "telemetry": {
+    "consumer_group": "telemetry-processors",
+    "entry_fields": {
+      "payload": "TelemetryFrame JSON 문자열(received_at 서버 시각으로 덮어씀)"
+    },
+    "payload_schema": {
+      "$defs": {
+        "FlightMode": {
+          "description": "`docs/api/telemetry_frame_dictionary.md`에 정의된 비행 모드.",
+          "enum": [
+            "MANUAL",
+            "AUTO",
+            "GUIDED",
+            "LOITER",
+            "RTL",
+            "LANDED"
+          ],
+          "title": "FlightMode",
+          "type": "string"
+        }
+      },
+      "properties": {
+        "altitude_m": {
+          "maximum": 10000.0,
+          "minimum": -500.0,
+          "title": "Altitude M",
+          "type": "number"
+        },
+        "asset_id": {
+          "minLength": 1,
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "battery_pct": {
+          "maximum": 100.0,
+          "minimum": 0.0,
+          "title": "Battery Pct",
+          "type": "number"
+        },
+        "correlation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Correlation Id"
+        },
+        "deployment_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Deployment Id"
+        },
+        "event_time": {
+          "format": "date-time",
+          "title": "Event Time",
+          "type": "string"
+        },
+        "flight_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FlightMode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "heading_deg": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 360.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Heading Deg"
+        },
+        "latitude": {
+          "maximum": 90.0,
+          "minimum": -90.0,
+          "title": "Latitude",
+          "type": "number"
+        },
+        "longitude": {
+          "maximum": 180.0,
+          "minimum": -180.0,
+          "title": "Longitude",
+          "type": "number"
+        },
+        "mission_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mission Id"
+        },
+        "operation_session_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Operation Session Id"
+        },
+        "pitch_deg": {
+          "anyOf": [
+            {
+              "maximum": 90.0,
+              "minimum": -90.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pitch Deg"
+        },
+        "received_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Received At"
+        },
+        "roll_deg": {
+          "anyOf": [
+            {
+              "maximum": 180.0,
+              "minimum": -180.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Roll Deg"
+        },
+        "rssi_dbm": {
+          "anyOf": [
+            {
+              "maximum": 0.0,
+              "minimum": -130.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rssi Dbm"
+        },
+        "schema_version": {
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sequence_no": {
+          "minimum": 0,
+          "title": "Sequence No",
+          "type": "integer"
+        },
+        "speed_mps": {
+          "anyOf": [
+            {
+              "maximum": 150.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speed Mps"
+        },
+        "yaw_deg": {
+          "anyOf": [
+            {
+              "maximum": 180.0,
+              "minimum": -180.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Yaw Deg"
+        }
+      },
+      "required": [
+        "asset_id",
+        "event_time",
+        "sequence_no",
+        "latitude",
+        "longitude",
+        "altitude_m",
+        "battery_pct"
+      ],
+      "title": "TelemetryFrame",
+      "type": "object"
+    },
+    "producer_user": "telemetry",
+    "stream": "aeroops:telemetry:raw"
+  }
+}

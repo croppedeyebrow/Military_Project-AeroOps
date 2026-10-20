@@ -55,6 +55,19 @@ MVP PKI는 개발 CA와 기체별 인증서를 사용한다. 운영 확장에서
 
 권장 도구는 GitHub Actions, Gitleaks, Semgrep 또는 CodeQL, Trivy, Syft, Cosign, Dependabot/Renovate다. 도구 개수보다 실제 차단 규칙과 예외 승인 기록이 중요하다.
 
+Workflow 선언은 YAML로 유지하되 반복되는 배포 로직은 Go `opsctl`과 `release-controller`에 둔다. 이 도구는 환경 사전점검, SBOM·Cosign 서명·OCI digest 검증, Health Gate, Rollback과 증거 Bundle 생성을 담당한다. CI Runner와 운영 배포 주체의 Credential은 분리한다.
+
+### 언어별 보안 검사
+
+| 영역 | 필수 검사 |
+|---|---|
+| Kotlin/Spring | Gradle dependency scan, SAST, ArchUnit, 보안·권한 통합시험 |
+| Rust | `cargo audit`, `clippy`, unsafe 사용 검토 |
+| C++ | compiler warning-as-error, sanitizer, 정적 분석, fuzzing |
+| Python | dependency scan, type/lint, 모델·pickle 안전성 검사 |
+| Go | `govulncheck`, staticcheck, 배포 상태 머신 시험 |
+| React/TypeScript | dependency scan, typecheck, XSS/CSP 시험 |
+
 ## 6. 모델 공급망 보안
 
 - 모델 출처, 라이선스, 원본 URL, Hash 기록

@@ -36,7 +36,9 @@ flowchart TD
 - 검색: PostgreSQL FTS + pgvector
 - 결합: Reciprocal Rank Fusion
 - 출력: JSON Schema constrained decoding
-- 서비스: Python FastAPI, 별도 `ai-service` 프로세스
+- 서비스: Python 기반 별도 `ai-service` 프로세스(예: FastAPI 또는 gRPC Adapter)
+
+Python은 데이터 전처리·학습·평가·RAG orchestration을 소유한다. C++은 `llama.cpp` 추론 런타임과 대량 Replay/Codec 최적화에 사용할 수 있으며, Rust 통신 경로와 Kotlin 지휘통제 Core에는 모델 학습 의존성을 넣지 않는다.
 
 기반 모델 자체를 처음부터 사전학습하지 않는다. 직접 구현 대상은 문서 파싱, Chunking, 메타데이터 필터, Hybrid Retrieval, Reranking, Context 조립, 구조화 출력, 평가, 캐시, 안전 검증이다.
 
@@ -87,6 +89,8 @@ simulation_run → dataset snapshot → data validation → feature build
 | RAG | embedding model, chunk policy, index snapshot, top-k |
 | Prompt | template version, output schema, safety policy |
 | 배포 | Git SHA, image digest, model alias, deployed_at |
+
+학습·평가 Pipeline은 Python, 배포 승인·Artifact digest 확인과 운영 상태 수집은 Go 도구가 담당한다. 모델 승인 결과는 Kotlin `Deployment Registry`가 참조하지만 Registry 내부 상태를 직접 수정하지 않는다.
 
 ## 7. 평가
 

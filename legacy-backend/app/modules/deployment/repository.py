@@ -21,7 +21,7 @@ from app.core.runtime_state import get_current_deployment_id, get_current_operat
 from app.modules.alert.rules import RULE_VERSION
 from app.modules.deployment.models import Deployment, EventLog, OperationSession
 
-# backend/app/modules/deployment/repository.py -> parents[3] == backend/
+# legacy-backend/app/modules/deployment/repository.py -> parents[3] == legacy-backend/
 _BACKEND_ROOT = Path(__file__).resolve().parents[3]
 
 

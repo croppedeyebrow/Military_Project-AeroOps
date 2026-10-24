@@ -4,7 +4,7 @@ Kotlin C2 Core 전환(ADR 0004)에서 "현행 FastAPI와 같은 결과를 내는
 
 | 위치 | 무엇을 고정하나 | 어떻게 확인하나 |
 |---|---|---|
-| `baseline/` | REST(OpenAPI)·WebSocket 메시지·Redis Stream 계약 | `backend/tests/test_contract_baseline.py`(서비스 불필요) |
+| `baseline/` | REST(OpenAPI)·WebSocket 메시지·Redis Stream 계약 | `legacy-backend/tests/test_contract_baseline.py`(서비스 불필요) |
 | `golden/fastapi_replay.json` | 같은 입력을 넣었을 때의 최종 결과 | `replay/run_golden_replay.py`(서비스 필요) |
 
 ## Golden Replay

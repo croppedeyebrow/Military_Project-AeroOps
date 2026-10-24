@@ -10,9 +10,9 @@ Kotlin C2 Core 전환(ADR 0004)에서 "같은 계약을 내놓는가"를 비교�
 
 ## 갱신 규칙
 
-- 파일은 `backend/scripts/export_contract_baseline.py`가 생성한다. 손으로 고치지 않는다.
-- `backend/tests/test_contract_baseline.py`가 현행 코드와 이 파일의 차이를 감지해 실패한다.
-- 계약을 **의도적으로** 바꿨을 때만 `cd backend && python scripts/export_contract_baseline.py`로
+- 파일은 `legacy-backend/scripts/export_contract_baseline.py`가 생성한다. 손으로 고치지 않는다.
+- `legacy-backend/tests/test_contract_baseline.py`가 현행 코드와 이 파일의 차이를 감지해 실패한다.
+- 계약을 **의도적으로** 바꿨을 때만 `cd legacy-backend && python scripts/export_contract_baseline.py`로
   다시 만들고, 변경 이유를 커밋 메시지에 남긴다.
 - 최종 Asset/Command/Alert/Audit 결과 기준선은 `../golden/`과 `../replay/`를 본다
   (`../README.md`).

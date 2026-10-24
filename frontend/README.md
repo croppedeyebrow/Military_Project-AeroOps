@@ -5,7 +5,7 @@ React + TypeScript + Vite. `docs/planning/01_프론트엔드_아키텍처.md` �
 ## 로컬 실행
 
 4단계부터 실제 backend(WebSocket `/ws/operations`, `GET /assets`)가 필요하다 —
-[`backend/README.md`](../backend/README.md)로 backend를 먼저 띄운다.
+[`legacy-backend/README.md`](../legacy-backend/README.md)로 backend를 먼저 띄운다.
 
 ```bash
 yarn install

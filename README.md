@@ -13,14 +13,14 @@
 > 부하 시험(처리 지연 p95 ~240ms, 병목 없음)과 Redis/Postgres 중단→복구 장애 시험을
 > 거쳐, 장애 시험에서 발견한 "Redis 재시작 시 ACL 사용자 소실로 텔레메트리 수신이
 > 영구 중단되는" 버그를 수정했다 — 상세:
-> [`docs/dev_history/07_단계_이력재생_관측성.md`](docs/dev_history/07_단계_이력재생_관측성.md).
+> [`docs/dev_history/legacy/07_단계_이력재생_관측성.md`](docs/dev_history/legacy/07_단계_이력재생_관측성.md).
 > 6단계에서 선택 기체 3D 자세 뷰어(Three.js, 모델은 placeholder — 상세:
-> [`docs/dev_history/06_단계_3D상세뷰어.md`](docs/dev_history/06_단계_3D상세뷰어.md)),
+> [`docs/dev_history/legacy/06_단계_3D상세뷰어.md`](docs/dev_history/legacy/06_단계_3D상세뷰어.md)),
 > 5단계에서 임무·경보 관리와 명령 승인/취소/타임아웃 상태 머신(`PENDING_APPROVAL →
 > APPROVED → DISPATCHED → ACKNOWLEDGED → EXECUTING →
 > SUCCEEDED/FAILED/TIMED_OUT/CANCELLED`), 4단계에서 `/ws/operations` 실시간 2D
 > 관제·재동기화, 3단계에서 Command/Telemetry 채널 분리(Redis ACL)를 갖췄다. 진행
-> 상황은 [`docs/dev_history/`](docs/dev_history/), 전체 계획은
+> 상황은 [`docs/dev_history/`](docs/dev_history/legacy/), 전체 계획은
 > [`docs/roadmap/00_20일_개발로드맵.md`](docs/roadmap/00_20일_개발로드맵.md) 참고.
 
 ## 구조
@@ -28,7 +28,8 @@
 ```
 AeroOps/
 ├── frontend/    React + TypeScript + Vite 관제 UI
-├── backend/     FastAPI 모듈형 모놀리스
+├── legacy-backend/  FastAPI 모듈형 모놀리스(전환 기간 기준 구현, ADR 0004)
+├── backend/     Kotlin·Spring Boot C2 Core(구축 중)
 ├── simulator/   Python 드론 텔레메트리 시뮬레이터
 ├── infra/       Docker Compose, Prometheus, Grafana, reverse proxy
 ├── tests/       서비스 간 통합/E2E 테스트
@@ -36,7 +37,7 @@ AeroOps/
     ├── planning/     기획·아키텍처 문서 (프론트/백엔드/DB/인프라/데이터엔지니어링)
     ├── roadmap/      20일 단계별 개발 로드맵과 작업 분해
     ├── decisions/    기술 결정 기록(ADR)
-    ├── dev_history/  단계별 개발 내역 기록
+    ├── dev_history/  개발 내역 기록(legacy: FastAPI 1~7단계, new_history: Kotlin 전환)
     └── api/          데이터 계약·API 문서(OpenAPI는 3단계 이후 생성)
 ```
 
@@ -55,7 +56,7 @@ AeroOps/
 
 ```bash
 cp infra/.env.example infra/.env
-cp backend/.env.example backend/.env
+cp legacy-backend/.env.example legacy-backend/.env
 cp simulator/.env.example simulator/.env
 cp frontend/.env.example frontend/.env
 
@@ -75,7 +76,7 @@ docker compose -f infra/docker-compose.yml --profile with-simulator up
 ```
 
 서비스별 개발 방법은 각 폴더의 README(`frontend/README.md`,
-`backend/README.md`, `simulator/README.md`, `infra/README.md`)를 참고한다.
+`legacy-backend/README.md`, `simulator/README.md`, `infra/README.md`)를 참고한다.
 
 ## 로드맵
 

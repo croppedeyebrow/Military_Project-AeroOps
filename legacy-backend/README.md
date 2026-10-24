@@ -40,7 +40,7 @@ device_identity,sync,deployment}` — 각 모듈 README에 책임과 로드맵 �
 ACK·실행·결과·취소·타임아웃 상태 머신), `mission`(임무·경로·구역), `alert`(경보 규칙),
 `audit`(감사 로그), `deployment`(build-info), `realtime`(`/ws/operations`),
 `sync`(재동기화 handshake). 자세한 내용은
-[`docs/dev_history/`](../docs/dev_history/)의 단계별 문서.
+[`docs/dev_history/`](../docs/dev_history/legacy/)의 단계별 문서.
 
 ## 처리 흐름 — Telemetry/Command 채널 분리
 

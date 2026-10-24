@@ -1,4 +1,4 @@
-/** `backend/app/modules/mission/schemas.py`와 1:1 대응. */
+/** `legacy-backend/app/modules/mission/schemas.py`와 1:1 대응. */
 export interface Mission {
   id: string;
   name: string;

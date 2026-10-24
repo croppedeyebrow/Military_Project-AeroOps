@@ -14,7 +14,7 @@ export interface CreateCommandInput {
 }
 
 /** 승인 대기 명령 목록 — `ApprovalQueue`가 폴링한다(WS로는 아직 command 채널을 안 보냄,
- * `docs/dev_history/` 참고: command 채널은 기체 dispatch 전용이라 UI로 직접 안 보낸다). */
+ * `docs/dev_history/legacy/` 참고: command 채널은 기체 dispatch 전용이라 UI로 직접 안 보낸다). */
 export function usePendingCommandsQuery() {
   return useQuery({
     queryKey: ["commands", "PENDING_APPROVAL"],

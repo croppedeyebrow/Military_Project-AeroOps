@@ -1,0 +1,6 @@
+# Gradle 로컬 캐시·빌드 산출물 (wrapper 파일 gradlew, gradle/wrapper/* 는 커밋한다)
+.gradle/
+build/
+.kotlin/
+out/
+*.class

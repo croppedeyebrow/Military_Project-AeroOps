@@ -5,7 +5,7 @@ rem Purpose: the repo root README documents two ways to run this project locally
 rem a full "docker compose up --build" (rebuilds images every time, slow to iterate
 rem on) and a faster per-service path (Postgres/Redis in Docker, backend/frontend run
 rem directly with --reload/HMR). This script automates that second, faster path
-rem exactly as backend/README.md and frontend/README.md describe it, so day-to-day
+rem exactly as legacy-backend/README.md and frontend/README.md describe it, so day-to-day
 rem dev doesn't need five manual terminals.
 rem
 rem Also starts the simulator (scripts\run-simulator.bat): without it the UI has
@@ -29,7 +29,7 @@ set "ROOT=%~dp0"
 cd /d "%ROOT%"
 
 echo [1/6] Checking .env files (copied from .env.example if missing)...
-if not exist "backend\.env" copy "backend\.env.example" "backend\.env" >nul
+if not exist "legacy-backend.env" copy "legacy-backend.env.example" "legacy-backend.env" >nul
 if not exist "frontend\.env" copy "frontend\.env.example" "frontend\.env" >nul
 if not exist "infra\.env" copy "infra\.env.example" "infra\.env" >nul
 if not exist "simulator\.env" copy "simulator\.env.example" "simulator\.env" >nul

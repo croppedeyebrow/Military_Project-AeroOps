@@ -1,6 +1,6 @@
 # ADR 0005: Telemetry `boot_id` 도입과 멱등 키 변경
 
-- 상태: 제안됨 (사용자 승인 전)
+- 상태: **승인됨** (2026-10-24, 사용자 승인. DDL은 ADR 0004 결정에 따라 Alembic이 아니라 Flyway로 수행)
 - 일자: 2026-10-24
 - 관련: [ADR 0004](0004-strangler-transition-to-kotlin-c2-core.md), `docs/planning/06_시스템_디자인_상세.md`(멱등 키 `(asset_id, boot_id, sequence_no)`)
 
@@ -51,12 +51,20 @@
 | 영역 | 변경 |
 |---|---|
 | Wire 계약 | `TelemetryFrame`에 `boot_id: str \| None`(v1) → 필수(v2). OpenAPI·WS·Redis payload 기준선(`tests/contracts/baseline`) 재생성 필요 |
-| DB (Alembic 0006) | `telemetry_frames`, `asset_latest_state`, `sync_sessions`에 `boot_id text not null default 'legacy'` 추가. 유일 제약을 `(asset_id, boot_id, sequence_no)`로 교체. 기존 행은 `legacy`로 자동 채워짐 |
+| DB (Flyway, 두 단계로 분리) | **Expand(먼저)**: `telemetry_frames`, `asset_latest_state`, `sync_sessions`에 `boot_id text not null default 'legacy'` 추가 — legacy 코드가 깨지지 않는다. **Contract(Operational Picture 쓰기 이전 시점)**: 유일 제약을 `(asset_id, sequence_no)` → `(asset_id, boot_id, sequence_no)`로 교체. 기존 행은 `legacy`로 자동 채워짐 |
 | Backend | `insert_raw_frame`/`get_max_sequence_no`를 `boot_id` 범위로 조회, `SyncRequest`에 `boot_id` 추가, `_compute_sequence_gap`에 `new_boot` 처리. `event_log.stream_sequence`(텔레메트리 채널은 `sequence_no`)는 부팅 간 단조가 아니므로 정렬은 `event_time, id`에 의존함을 확인·문서화(현행 정렬 키는 `event_time, stream_sequence, id`) |
 | Simulator | 실행(부팅)마다 `boot_id` 생성(재현성을 위해 seed·asset·부팅 순번에서 UUIDv5로 결정적 생성). 새 장애 유형 `reboot`(중간에 `boot_id` 교체 + sequence 0 재시작) 추가 |
 | Frontend | 영향 없음(WS 메시지 필드 추가만, 선택 필드) |
 | 시험 | Golden Replay에 `reboot` 시나리오와 재동기화 시나리오 추가. `legacy` 경로는 기존 기준선이 회귀 시험 역할 |
 | 문서 | `planning/03`(유일 제약)·`planning/05`(필드 목록) 갱신, 구현 시 `docs/api/telemetry_frame_dictionary.md` 갱신 |
+
+## 적용 시점 제약 (ADR 0004 결정에서 파생)
+
+유일 제약 교체를 Expand와 같이 하면 안 된다. legacy는 `insert_raw_frame`에서
+`ON CONFLICT (asset_id, sequence_no)`를 쓰므로 옛 제약을 지우면 깨진다. 반대로 옛 제약이 남아 있으면
+Kotlin이 새 부팅의 `sequence_no=0`을 쓰는 순간 이전 부팅의 같은 번호와 충돌한다. 그래서 **제약 교체는
+Telemetry 쓰기 주체가 legacy에서 Kotlin으로 넘어가는 시점**(`new_roadmap` 3단계 승격)에 함께 수행한다.
+그 전까지 legacy는 부팅 리셋 결함을 그대로 가진 채 동작한다(알려진 제한).
 
 ## 범위 밖 / 후속
 

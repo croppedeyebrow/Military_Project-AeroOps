@@ -6,7 +6,7 @@ Docker Compose 기반 로컬 실행 환경. `docs/planning/04_인프라_네트�
 
 ```bash
 cp infra/.env.example infra/.env
-cp backend/.env.example backend/.env
+cp legacy-backend/.env.example legacy-backend/.env
 cp simulator/.env.example simulator/.env
 cp frontend/.env.example frontend/.env
 docker compose -f infra/docker-compose.yml --env-file infra/.env up --build

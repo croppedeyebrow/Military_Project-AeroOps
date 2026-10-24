@@ -1,6 +1,6 @@
 # AeroOps 통합/E2E 테스트
 
-`backend/tests`, `frontend`(vitest), `simulator/tests`는 각 서비스 단위
+`legacy-backend/tests`, `frontend`(vitest), `simulator/tests`는 각 서비스 단위
 테스트를 담당한다. 이 폴더는 여러 서비스를 함께 띄운 상태에서 검증하는
 통합·E2E 시나리오를 담는다.
 

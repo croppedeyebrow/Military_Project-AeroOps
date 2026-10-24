@@ -12,7 +12,7 @@ services:
     # 설치본과 자주 충돌한다(개발자 개인 환경 문제). 컨테이너 내부 포트(5432)와
     # api 서비스가 쓰는 내부 네트워크 주소(postgres:5432, 아래 DATABASE_URL)는 호스트
     # 포트 매핑과 무관하므로 그대로 둔다 — 바뀌는 건 호스트에서 `localhost:????`로
-    # 접속할 때 쓰는 포트뿐이다(backend/.env.example도 5433으로 맞춰뒀다).
+    # 접속할 때 쓰는 포트뿐이다(legacy-backend/.env.example도 5433으로 맞춰뒀다).
     ports:
       - "5433:5432"
     healthcheck:
@@ -35,12 +35,12 @@ services:
 
   api:
     build:
-      context: ../backend
+      context: ../legacy-backend
       args:
         GIT_SHA: ${GIT_SHA:-local-dev}
         IMAGE_TAG: ${IMAGE_TAG:-local-dev}
     env_file:
-      - ../backend/.env
+      - ../legacy-backend/.env
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-aeroops}:${POSTGRES_PASSWORD:-aeroops}@postgres:5432/${POSTGRES_DB:-aeroops}
       REDIS_URL: redis://redis:6379/0

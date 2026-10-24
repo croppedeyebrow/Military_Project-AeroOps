@@ -276,7 +276,7 @@ class DeviceCommandClient:
 def extract_payload(detail_response: dict[str, Any]) -> dict[str, Any]:
     """`GET /commands/{id}` 응답에서 원래 요청 payload를 복원한다.
 
-    `commands` 테이블 자체엔 payload 원문이 없고 해시만 있다(`backend/app/modules/
+    `commands` 테이블 자체엔 payload 원문이 없고 해시만 있다(`legacy-legacy-backend/app/modules/
     command/repository.py`의 `hash_payload` — 감사 로그 외 용도로 원문을 영구 보관할
     이유가 없다는 설계). 대신 생성 시점의 `CREATED` 이벤트가 전체 envelope을
     `detail`에 그대로 남겨둔다(`create_command_idempotent`) — 그래서 거기서 꺼낸다.

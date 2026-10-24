@@ -1,6 +1,6 @@
 """CommandEnvelope 계약 (시뮬레이터 측 구현).
 
-`backend/app/schemas/command.py`와 동일한 계약을 독립적으로 구현한다(사유는
+`legacy-backend/app/schemas/command.py`와 동일한 계약을 독립적으로 구현한다(사유는
 `docs/decisions/0002-telemetry-contract-duplication.md` — Telemetry에 적용한 것과 같은
 결정을 Command에도 적용한다). 필드 정의는 `docs/api/command_envelope_dictionary.md` 참고.
 """

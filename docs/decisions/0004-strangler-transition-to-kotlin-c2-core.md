@@ -1,12 +1,12 @@
 # ADR 0004: FastAPI에서 Kotlin C2 Core로의 점진적(Strangler) 전환
 
-- 상태: 제안됨 (사용자 승인 전)
+- 상태: **승인됨** (2026-10-24, 사용자 승인. 공존 기간 스키마 소유는 제안과 달리 **Kotlin(Flyway)** 으로 변경)
 - 일자: 2026-10-20
 - 대체 대상: [ADR 0001](0001-project-foundation.md)의 "백엔드: FastAPI 단일 모듈형 모놀리스" 결정(프론트·DB·Redis·관측성 결정은 유지)
 
 ## 배경
 
-FastAPI 기반 1~7단계가 구현·검증됐다(`docs/dev_history/`). 기획 문서가 핵심 백엔드를
+FastAPI 기반 1~7단계가 구현·검증됐다(`docs/dev_history/legacy/`). 기획 문서가 핵심 백엔드를
 Kotlin/Spring Modulith로, 통신을 Rust로, 시뮬레이터를 C++로, 배포·관측 도구를 Go로,
 Python을 AI·MLOps로 재배치하는 방향으로 바뀌었다
 (`docs/planning/10~12`, `docs/new_roadmap/`).
@@ -25,11 +25,20 @@ Python을 AI·MLOps로 재배치하는 방향으로 바뀌었다
    경계, C++=결정적 시뮬레이터·Replay, Python=AI·MLOps, Go=배포 검증·운영 도구.
    업무 규칙은 Kotlin 밖에 복제하지 않는다.
 
-## 제안 기본값 (Day 1~2에 확정 필요)
+## 확정 사항 (2026-10-24)
 
-| 쟁점 | 제안 | 이유 |
+### 레포 구조
+
+- **`backend/`는 Kotlin·Spring Boot(Gradle 멀티모듈)가 차지한다**(`docs/planning/02` 코드 구조와 일치).
+- 현행 FastAPI는 **`legacy-backend/`로 이동**한다. 삭제하지 않는다(결정 3번: 검증 전 삭제 금지,
+  Golden Replay·계약 기준선의 비교 대상이자 전환 기간 운영 구현).
+- Compose 서비스: 기존 `api`는 `legacy-backend`를 빌드하고, Kotlin은 새 서비스 `c2-core`로 추가한다.
+
+### 공존 기간 기본값
+
+| 쟁점 | 결정 | 이유 |
 |---|---|---|
-| 공존 기간 스키마 소유 | 기존 테이블은 Alembic이 계속 소유하고, Kotlin은 Shadow용 별도 schema를 Flyway로 관리. Context 쓰기 이전 시점에 해당 테이블 소유를 Flyway로 이전 | Dual Write·이중 Migration 충돌 방지 |
+| 공존 기간 스키마 소유 | **Kotlin(Flyway)이 모든 DDL을 소유한다.** Alembic은 head `0005`에서 동결한다. Flyway Baseline은 Alembic 0001~0005 결과와 동일하며, 빈 DB는 baseline 마이그레이션이 만들고 기존 DB는 baseline 버전으로 등록한다. | 마이그레이션 도구가 하나여야 이중 DDL 충돌이 없다. |
 | Shadow의 Redis 소비 | Kotlin은 별도 consumer group으로 같은 Stream을 읽는다(FastAPI group과 분리) | 이중 소비로 인한 메시지 누락·중복 방지 |
 | Wire 프로토콜 | 기존 HTTP+JSON을 기준선으로 유지하고, Rust Gateway 도입 시 JSON을 먼저 지원, Protobuf는 Adapter에서 양쪽 지원 후 전환 | 기준선 비교 가능성 유지 |
 | Rust 시험 클라이언트 | C++ 시뮬레이터 완성 전에는 기존 Python 시뮬레이터에 Gateway 어댑터를 붙여 시험 | Day 8~9와 Day 10~11 순서 의존 해소 |
@@ -37,6 +46,11 @@ Python을 AI·MLOps로 재배치하는 방향으로 바뀌었다
 
 ## 영향
 
+- **스키마 소유 이전의 파급(legacy 호환 규칙)**: Flyway가 DDL을 소유한 뒤에도 `legacy-backend`는 같은 DB를
+  계속 쓴다. 따라서 legacy가 쓰기 주체인 Context의 테이블에 대한 Flyway 변경은 **legacy 코드가 깨지지 않는
+  Expand 전용**(컬럼 추가·기본값 있는 NOT NULL·새 테이블)이어야 한다. 제약 교체·컬럼 삭제 같은 Contract
+  변경은 해당 Context의 쓰기 주체가 Kotlin으로 넘어간 뒤에만 한다. legacy 테스트용 `alembic upgrade head`는
+  baseline과 동치인 0005까지만 유지한다.
 - `boot_id`가 Wire 계약 필수 필드가 되므로 backend `TelemetryFrame`, DB, simulator 변경이
   필요하다(1-4 유닛에서 범위 확정).
 - 기존 20일 로드맵(`docs/roadmap/`)은 "완료된 FastAPI 기준선"이 되고, 이후 일정은

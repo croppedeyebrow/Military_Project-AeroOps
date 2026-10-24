@@ -9,7 +9,7 @@ rem string creates unescaped nested quotes, which cmd.exe mis-parses (the backen
 rem silently never starts, with no visible error — this is exactly what happened
 rem the first time this launcher was written as one inline command). Giving each
 rem step its own file means each needs only one, non-nested, pair of quotes.
-cd /d "%~dp0..\backend"
+cd /d "%~dp0..\legacy-backend"
 if not exist .venv (
     python -m venv .venv
     .venv\Scripts\python -m pip install -r requirements-dev.txt

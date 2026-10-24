@@ -1,6 +1,6 @@
 """TelemetryFrame 계약 (시뮬레이터 측 구현).
 
-`backend/app/schemas/telemetry.py`와 동일한 계약을 독립적으로 구현한다.
+`legacy-backend/app/schemas/telemetry.py`와 동일한 계약을 독립적으로 구현한다.
 동기화 방식은 `docs/decisions/0002-telemetry-contract-duplication.md`,
 필드 정의는 `docs/api/telemetry_frame_dictionary.md` 참고.
 """

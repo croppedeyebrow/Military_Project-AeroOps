@@ -1,7 +1,7 @@
 import type { Alert } from "./alert";
 
 /**
- * `backend/app/schemas/telemetry.py`의 `TelemetryFrame`과 1:1 대응.
+ * `legacy-backend/app/schemas/telemetry.py`의 `TelemetryFrame`과 1:1 대응.
  * 필드명은 서버가 실제로 보내는 JSON(snake_case) 그대로 쓴다 — 변환 계층을 따로 두면
  * 그 자체가 버그 표면이 되므로, 계약 문서(`docs/api/telemetry_frame_dictionary.md`)와
  * 항상 같은 이름을 유지한다.

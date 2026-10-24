@@ -1,4 +1,4 @@
-/** `backend/app/modules/alert/schemas.py`의 `AlertOut`과 1:1 대응. */
+/** `legacy-backend/app/modules/alert/schemas.py`의 `AlertOut`과 1:1 대응. */
 export interface Alert {
   id: number;
   asset_id: string;

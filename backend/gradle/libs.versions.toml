@@ -1,0 +1,10 @@
+# 버전의 단일 출처. Kotlin은 Spring Boot BOM이 관리하는 버전(spring-boot-dependencies 4.1.2의
+# kotlin.version)에 맞춘다 — 서로 다른 Kotlin 버전이 섞이면 컴파일러·kotlin-reflect 불일치가 생긴다.
+[versions]
+spring-boot = "4.1.2"
+kotlin = "2.3.21"
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

@@ -19,4 +19,4 @@
 | 단계 | 문서 | 상태 |
 |---|---|---|
 | 1 기준선·전환 계약 | [01_기준선과_전환계약_Day01.md](01_기준선과_전환계약_Day01.md) | 완료 |
-| 2 Kotlin·Spring Boot 기반 | (작성 예정) | 진행 중 |
+| 2 Kotlin·Spring Boot 기반 | [02_Kotlin_Spring기반_Day02-03.md](02_Kotlin_Spring기반_Day02-03.md) | 진행 중 (2-0~2-1 완료) |

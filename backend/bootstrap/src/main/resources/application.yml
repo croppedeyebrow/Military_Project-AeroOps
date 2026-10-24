@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: aeroops-c2-core
+
+# legacy FastAPI가 8000을 쓰므로 전환 기간에는 겹치지 않게 8080을 쓴다.
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      # 배포 도구(Go opsctl Health Gate 등)가 구분해서 볼 수 있게 liveness/readiness를 분리한다.
+      probes:
+        enabled: true

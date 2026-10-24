@@ -228,10 +228,14 @@ class Runner:
         def approve(name: str, who: str = "approver-1", label: str = "approve"):
             return call(name, label, "POST", f"/commands/{cid(name)}/approve", {"approved_by": who})
 
-        def create(name: str, expires_in_s: float = 3600.0, label: str = "create"):
-            return call(
-                name, label, "POST", "/commands", self._command_body(name, asset_id, expires_in_s)
-            )
+        def create(
+            name: str,
+            expires_in_s: float = 3600.0,
+            label: str = "create",
+            overrides: dict | None = None,
+        ):
+            body = {**self._command_body(name, asset_id, expires_in_s), **(overrides or {})}
+            return call(name, label, "POST", "/commands", body)
 
         def step(name: str, action: str):
             return call(name, action, "POST", f"/commands/{cid(name)}/{action}")
@@ -262,6 +266,16 @@ class Runner:
         step("failed", "ack")
         step("failed", "execute")
         call("failed", "result", "POST", f"/commands/{cid('failed')}/result", {"outcome": "FAILED"})
+        # 8) 같은 키·command_id에 다른 command_type으로 재요청하면 409(조용히 기존 명령을 돌려주지 않는다)
+        create("conflict_type")
+        create("conflict_type", label="create_other_type", overrides={"command_type": "RTL"})
+        # 9) 다른 idempotency_key로 이미 있는 command_id를 쓰면 409(500이 아니다)
+        create("conflict_id")
+        create(
+            "conflict_id",
+            label="create_other_key",
+            overrides={"idempotency_key": f"{self.tag}conflict_id_other_key"},
+        )
         # 7) ACK 손실: 승인·전달 후 ACK가 오지 않으면 만료 시 TIMED_OUT
         create("ack_lost", expires_in_s=4.0)
         approve("ack_lost")

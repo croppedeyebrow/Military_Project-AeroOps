@@ -66,7 +66,19 @@ def _get_by_idempotency_key(db: Session, idempotency_key: str) -> Command | None
 def _reconcile_existing(
     existing: Command, envelope: CommandEnvelope, payload_hash: str
 ) -> CommandCreationResult:
-    if existing.id != envelope.command_id or existing.payload_hash != payload_hash:
+    # 같은 키의 재요청이 "같은 명령"인지 판단하는 기준 — 명령의 정체성(무엇을·누구에게·누가·어떤
+    # 내용으로)을 이루는 값 전부. 예전에는 command_id와 payload_hash만 비교해서, 같은 키·같은
+    # command_id·같은 payload로 command_type만 RTL→LOITER로 바꿔 보내면 409가 아니라 200과 함께
+    # 기존 RTL 명령을 돌려줬다(요청자는 LOITER가 접수된 줄 안다). 발행·만료 시각은 재시도마다 달라질
+    # 수 있어 정체성에서 제외한다.
+    same_command = (
+        existing.id == envelope.command_id
+        and existing.command_type == envelope.command_type
+        and existing.target_asset_id == envelope.target_asset_id
+        and existing.requested_by == envelope.requested_by
+        and existing.payload_hash == payload_hash
+    )
+    if not same_command:
         raise IdempotencyConflict(
             f"idempotency_key '{envelope.idempotency_key}'가 다른 명령에 이미 쓰였다"
         )
@@ -107,9 +119,15 @@ def create_command_idempotent(db: Session, envelope: CommandEnvelope) -> Command
     except IntegrityError:
         db.rollback()
         existing = _get_by_idempotency_key(db, envelope.idempotency_key)
-        if existing is None:
-            raise  # idempotency_key 충돌이 아닌 다른 무결성 오류 — 그대로 알린다
-        return _reconcile_existing(existing, envelope, payload_hash)
+        if existing is not None:
+            return _reconcile_existing(existing, envelope, payload_hash)
+        # 키 충돌이 아니라면 command_id(기본키)만 이미 쓰인 경우다 — 다른 키로 만든 명령의 id를
+        # 재사용한 요청이라 클라이언트 잘못이다. 예전에는 여기서 그대로 raise해 500이 났다.
+        if db.get(Command, envelope.command_id) is not None:
+            raise IdempotencyConflict(
+                f"command_id '{envelope.command_id}'가 다른 idempotency_key의 명령에 이미 쓰였다"
+            )
+        raise  # 그 밖의 무결성 오류 — 그대로 알린다
 
     created_at = datetime.now(timezone.utc)
     db.add(

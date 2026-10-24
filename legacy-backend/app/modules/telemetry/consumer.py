@@ -4,24 +4,34 @@
 단일 FastAPI 프로세스 안의 백그라운드 asyncio task로 실행한다
 (ADR 0001의 모듈형 모놀리스 원칙 — 별도 워커 프로세스를 추가하지 않는다).
 
-한 메시지 처리에 실패해도(예: 손상된 payload) 스트림이 멈추지 않도록 항상 XACK한다.
-재처리가 필요한 실패는 로그로만 남긴다 — dead-letter 스트림은 MVP 범위 밖이다.
+메시지 처리 실패는 성격에 따라 다르게 다룬다(2026-10-24 변경 — 이전에는 실패해도 항상 XACK해서
+DB가 순간 끊긴 때의 프레임이 202를 받고도 영구 유실됐다):
+- 영구 실패(payload 없음·계약 위반처럼 재처리해도 같은 결과): dead-letter 스트림에 남기고 XACK.
+- 일시 실패(DB 순단 등): XACK하지 않아 pending에 남고, 일정 시간 뒤 XAUTOCLAIM으로 다시 가져와
+  재처리한다. 원본 저장이 (asset_id, sequence_no) 유일 제약의 ON CONFLICT라 중복 처리돼도 안전하다.
+- 전달 횟수가 MAX_DELIVERIES를 넘으면 dead-letter로 보내 무한 재시도를 막는다.
+알려진 한계: 원본 저장 커밋 이후 단계(event_log·경보 판정)에서 실패해 재처리되면, 그 프레임은 이미
+저장돼 `is_new=False`로 판정되어 최신 상태 갱신·경보 판정이 다시 일어나지 않는다.
 """
 from __future__ import annotations
 
 import asyncio
 import contextlib
 import logging
+import time
 from datetime import datetime, timezone
 
 import redis.asyncio as redis
+from pydantic import ValidationError
 from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import ResponseError
 
 from app.core.metrics import (
     telemetry_consumer_error_total,
+    telemetry_dead_letter_total,
     telemetry_duplicate_total,
     telemetry_processing_latency_seconds,
+    telemetry_redelivery_total,
 )
 from app.core.redis import get_telemetry_redis
 from app.core.redis_acl import ensure_channel_acl_users
@@ -42,6 +52,14 @@ BLOCK_MS = 5000
 # Redis 재연결 실패 시 재시도 전 대기 — 재시작 직후 바로 재시도하면 아직 뜨지 않은
 # Redis에 계속 몰아쳐 로그만 쌓인다(`run_consumer_loop` 참고).
 RECONNECT_BACKOFF_S = 2.0
+# 처리 실패로 ACK되지 않은 메시지를 다시 가져오는 규칙. 방금 실패한 메시지를 곧바로 다시 돌리면
+# 같은 장애(예: DB 순단)에 또 걸리므로 MIN_IDLE만큼 둔 뒤 재시도한다.
+RECLAIM_MIN_IDLE_MS = 10_000
+RECLAIM_INTERVAL_S = 5.0
+# 전달(처음 읽기 + 재전달) 횟수 상한. 넘으면 dead-letter로 보낸다.
+MAX_DELIVERIES = 5
+# Telemetry 계정의 ACL 키 패턴(`~<telemetry_stream_name>*`)에 포함되는 이름이어야 쓸 수 있다.
+DEAD_LETTER_STREAM = f"{TELEMETRY_STREAM}:dead"
 
 
 async def ensure_consumer_group(redis_client: redis.Redis | None = None) -> None:
@@ -109,6 +127,88 @@ def _handle_message(payload: str) -> list[dict]:
     return messages
 
 
+async def _dead_letter(
+    client: redis.Redis, message_id: str, fields: dict, reason: str, deliveries: int
+) -> None:
+    """처리할 수 없는 메시지를 원본 그대로 dead-letter 스트림에 남기고 ACK한다.
+
+    dead-letter 기록(XADD)이 실패하면 예외가 그대로 올라가 ACK하지 않으므로, 증거를 남기지 못한
+    채 메시지를 잃는 일은 없다.
+    """
+    await client.xadd(
+        DEAD_LETTER_STREAM,
+        {
+            "original_id": message_id,
+            "reason": reason,
+            "deliveries": str(deliveries),
+            "payload": str(fields.get("payload") or ""),
+        },
+    )
+    await client.xack(TELEMETRY_STREAM, CONSUMER_GROUP, message_id)
+    telemetry_dead_letter_total.labels(reason=reason).inc()
+    logger.error(
+        "텔레메트리 메시지를 dead-letter로 이동: message_id=%s reason=%s deliveries=%s",
+        message_id,
+        reason,
+        deliveries,
+    )
+
+
+async def _process_one(
+    client: redis.Redis, message_id: str, fields: dict, deliveries: int
+) -> None:
+    """메시지 1건을 처리한다. 성공·영구 실패는 ACK하고, 일시 실패는 ACK하지 않고 남긴다."""
+    payload = fields.get("payload")
+    if payload is None:
+        await _dead_letter(client, message_id, fields, "missing_payload", deliveries)
+        return
+    if deliveries > MAX_DELIVERIES:
+        await _dead_letter(client, message_id, fields, "max_deliveries", deliveries)
+        return
+    if deliveries > 1:
+        telemetry_redelivery_total.inc()
+
+    try:
+        broadcast_messages = await asyncio.to_thread(_handle_message, payload)
+    except ValidationError:
+        # 깨진 JSON·계약 위반은 다시 처리해도 같은 결과다.
+        telemetry_consumer_error_total.inc()
+        await _dead_letter(client, message_id, fields, "invalid_payload", deliveries)
+        return
+    except Exception:  # noqa: BLE001 — 일시 실패로 보고 ACK하지 않는다(재전달 대상)
+        telemetry_consumer_error_total.inc()
+        logger.exception(
+            "텔레메트리 메시지 처리 실패(재전달 예정): message_id=%s deliveries=%s",
+            message_id,
+            deliveries,
+        )
+        return
+
+    broadcaster = get_broadcaster()
+    for message in broadcast_messages:
+        broadcaster.publish(message)
+    await client.xack(TELEMETRY_STREAM, CONSUMER_GROUP, message_id)
+
+
+async def _reclaim_and_process(client: redis.Redis) -> None:
+    """ACK되지 않은 채 MIN_IDLE 이상 지난 메시지를 다시 가져와 처리한다."""
+    result = await client.xautoclaim(
+        TELEMETRY_STREAM,
+        CONSUMER_GROUP,
+        CONSUMER_NAME,
+        min_idle_time=RECLAIM_MIN_IDLE_MS,
+        start_id="0-0",
+        count=READ_COUNT,
+    )
+    for message_id, fields in result[1]:
+        # XAUTOCLAIM이 전달 횟수를 이미 1 올렸으므로 이 값이 "이번 포함 총 전달 횟수"다.
+        pending = await client.xpending_range(
+            TELEMETRY_STREAM, CONSUMER_GROUP, min=message_id, max=message_id, count=1
+        )
+        deliveries = int(pending[0]["times_delivered"]) if pending else 1
+        await _process_one(client, message_id, fields or {}, deliveries)
+
+
 async def run_consumer_loop(redis_client: redis.Redis | None = None) -> None:
     """`CancelledError`(앱 종료)로 멈출 때까지 스트림을 계속 소비한다.
 
@@ -124,8 +224,13 @@ async def run_consumer_loop(redis_client: redis.Redis | None = None) -> None:
     client = redis_client or get_telemetry_redis()
     await ensure_consumer_group(client)
 
+    last_reclaim = 0.0
     while True:
         try:
+            if time.monotonic() - last_reclaim >= RECLAIM_INTERVAL_S:
+                last_reclaim = time.monotonic()
+                await _reclaim_and_process(client)
+
             response = await client.xreadgroup(
                 groupname=CONSUMER_GROUP,
                 consumername=CONSUMER_NAME,
@@ -138,18 +243,7 @@ async def run_consumer_loop(redis_client: redis.Redis | None = None) -> None:
 
             for _stream_name, stream_messages in response:
                 for message_id, fields in stream_messages:
-                    payload = fields.get("payload")
-                    try:
-                        if payload is not None:
-                            broadcast_messages = await asyncio.to_thread(_handle_message, payload)
-                            broadcaster = get_broadcaster()
-                            for message in broadcast_messages:
-                                broadcaster.publish(message)
-                    except Exception:  # noqa: BLE001 — 한 메시지 실패로 스트림 전체가 막히면 안 된다
-                        telemetry_consumer_error_total.inc()
-                        logger.exception("텔레메트리 메시지 처리 실패: message_id=%s", message_id)
-                    finally:
-                        await client.xack(TELEMETRY_STREAM, CONSUMER_GROUP, message_id)
+                    await _process_one(client, message_id, fields, deliveries=1)
         except (RedisConnectionError, ResponseError) as exc:
             telemetry_consumer_error_total.inc()
             logger.warning(

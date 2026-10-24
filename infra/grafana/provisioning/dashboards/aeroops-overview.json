@@ -1,23 +1,39 @@
 {
   "title": "AeroOps 운영 대시보드",
   "description": "7단계(docs/roadmap/작업분해_2단계_8단계.md) \"Prometheus 커스텀 메트릭 + infra/grafana/ 대시보드\" — 텔레메트리/명령/실시간(WS)/경보/재동기화 5개 영역을 한 화면에서 본다. 각 패널의 PromQL은 backend/app/core/metrics.py에 정의된 지표를 그대로 쓴다(지표 이름·라벨이 바뀌면 이 파일도 같이 고쳐야 한다).",
-  "tags": ["aeroops"],
+  "tags": [
+    "aeroops"
+  ],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
   "refresh": "5s",
-  "time": { "from": "now-15m", "to": "now" },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
   "panels": [
     {
       "id": 1,
       "type": "timeseries",
       "title": "텔레메트리 수신량",
       "description": "계약 검증을 통과해 Redis Stream에 발행된 프레임 수(초당). 기체별 라벨을 합산한다 — 10대 전체가 1Hz면 이 값이 약 10이어야 정상(완료 기준 \"10대×1Hz를 20분 이상 처리\").",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "sum(rate(aeroops_telemetry_received_total[1m]))",
           "legendFormat": "received/s"
         }
@@ -28,39 +44,88 @@
       "type": "timeseries",
       "title": "텔레메트리 처리 지연 (p95)",
       "description": "received_at부터 DB 반영 완료까지. SLO(docs/planning/06_시스템_디자인_상세.md): 수집->UI p95 500ms 이하.",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "histogram_quantile(0.95, sum(rate(aeroops_telemetry_processing_latency_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95 (s)"
         }
       ],
-      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      }
     },
     {
       "id": 3,
       "type": "timeseries",
-      "title": "텔레메트리 거부·중복",
-      "description": "거부=계약(범위) 위반, 중복=asset_id+sequence_no 중복으로 저장에서 무시됨. 둘 다 정상 운영 시 0에 가까워야 한다.",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "title": "텔레메트리 거부·중복·재전달·dead-letter",
+      "description": "거부=계약(범위) 위반, 중복=asset_id+sequence_no 중복으로 저장에서 무시됨. 둘 다 정상 운영 시 0에 가까워야 한다. 재전달=처리 실패로 ACK되지 않아 다시 처리한 횟수(DB 순단 등), dead-letter=재처리해도 안 되거나 재시도를 소진해 보관 스트림으로 보낸 메시지(0이어야 정상).",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "rate(aeroops_telemetry_rejected_total[1m])",
           "legendFormat": "rejected/s"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "sum(rate(aeroops_telemetry_duplicate_total[1m]))",
           "legendFormat": "duplicate/s"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "rate(aeroops_telemetry_consumer_error_total[1m])",
           "legendFormat": "consumer_error/s"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(aeroops_telemetry_redelivery_total[1m])",
+          "legendFormat": "redelivery/s"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(aeroops_telemetry_dead_letter_total[1m])) by (reason)",
+          "legendFormat": "dead_letter/s {{reason}}"
         }
       ]
     },
@@ -69,11 +134,22 @@
       "type": "timeseries",
       "title": "명령 생성 (타입별)",
       "description": "aeroops_command_created_total — 멱등 재사용(is_new=False)은 집계되지 않는다, 실제로 새로 생성된 것만.",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "sum(rate(aeroops_command_created_total[5m])) by (command_type)",
           "legendFormat": "{{command_type}}"
         }
@@ -84,11 +160,22 @@
       "type": "timeseries",
       "title": "명령 상태 전이 (상태별)",
       "description": "aeroops_command_status_transition_total — 어느 상태로 '도달'했는지 기준(APPROVED/DISPATCHED/ACKNOWLEDGED/EXECUTING/SUCCEEDED/FAILED/TIMED_OUT/CANCELLED).",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "sum(rate(aeroops_command_status_transition_total[5m])) by (status)",
           "legendFormat": "{{status}}"
         }
@@ -99,11 +186,22 @@
       "type": "timeseries",
       "title": "명령 타임아웃 스윕",
       "description": "aeroops_command_timeout_swept_total — timeout worker가 '방치돼' 강제 종결시킨 명령 수만 따로 센다(승인 시점에 이미 만료돼 즉시 종결된 경우는 포함 안 됨 — 운영상 의미가 다르다).",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "rate(aeroops_command_timeout_swept_total[5m])",
           "legendFormat": "swept/s"
         }
@@ -114,11 +212,22 @@
       "type": "stat",
       "title": "실시간 연결 수 (현재)",
       "description": "aeroops_realtime_ws_connections — 지금 /ws/operations에 연결된 클라이언트 수(Gauge, 연결 시 +1·해제 시 -1).",
-      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 24 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 24
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "aeroops_realtime_ws_connections",
           "legendFormat": "connections"
         }
@@ -129,11 +238,22 @@
       "type": "timeseries",
       "title": "브로드캐스트 메시지 (타입별)",
       "description": "aeroops_realtime_broadcast_messages_total — 연결된 클라이언트 수와 무관하게 '발행 횟수' 자체. update=기체 상태 갱신, alert=새 경보.",
-      "gridPos": { "h": 8, "w": 18, "x": 6, "y": 24 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 8,
+        "w": 18,
+        "x": 6,
+        "y": 24
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "sum(rate(aeroops_realtime_broadcast_messages_total[1m])) by (message_type)",
           "legendFormat": "{{message_type}}"
         }
@@ -144,11 +264,22 @@
       "type": "timeseries",
       "title": "경보 발생 (유형·심각도별)",
       "description": "aeroops_alert_raised_total — 같은 asset+type의 OPEN 경보가 이미 있으면 집계되지 않는다(alert/repository.py의 중복 방지 규칙과 동일).",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "sum(rate(aeroops_alert_raised_total[5m])) by (alert_type, severity)",
           "legendFormat": "{{alert_type}} ({{severity}})"
         }
@@ -159,11 +290,22 @@
       "type": "timeseries",
       "title": "재동기화 수행 (이상 유형별)",
       "description": "aeroops_sync_performed_total — anomaly=\"none\"이면 정상 재연결, \"device_behind_server\"면 기체 쪽 카운터가 뒤처진 경우(docs/decisions 참고 없이 sync/repository.py의 _compute_sequence_gap 설명 그대로).",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "sum(rate(aeroops_sync_performed_total[5m])) by (anomaly)",
           "legendFormat": "{{anomaly}}"
         }
@@ -174,11 +316,22 @@
       "type": "timeseries",
       "title": "재동기화 Sequence Gap (p95)",
       "description": "aeroops_sync_sequence_gap — 재동기화마다 감지된 손실 구간 크기. 0이면 손실 없이 재연결된 것.",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 40 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "histogram_quantile(0.95, sum(rate(aeroops_sync_sequence_gap_bucket[5m])) by (le))",
           "legendFormat": "p95 gap"
         }

@@ -99,11 +99,12 @@ TEST-ID 표기: `pytest:<파일>::<함수>`, `golden:<시나리오>`, `contract:
 | REQ-TEL-02 | 중복은 한 번만 저장 | `pytest:…::test_duplicate_frame_not_double_counted`, `golden:duplicate` | Golden 기준선 | 3단계 |
 | REQ-TEL-03 | 역순·지연이 최신 상태를 후퇴시키지 않음 | `golden:out_of_order`, `golden:reorder5`, `golden:delay` | Golden 기준선 | 3단계 |
 | REQ-TEL-04 | 손실·단절이 있어도 받은 프레임은 전부 보존 | `golden:missing`, `golden:disconnect`, `golden:loss20` | Golden 기준선 | 3단계 |
+| REQ-TEL-06 | 접수(202)된 프레임은 서버 내부 일시 실패(DB 순단)가 있어도 유실되지 않는다(재전달, 영구 실패·재시도 소진은 dead-letter) | `pytest:test_consumer_resilience::*`(4건), 실제 Postgres 중단 시험(접수 120/저장 120) | pytest + 장애 시험 | 3단계 |
 | REQ-TEL-05 | 부팅이 바뀌어도 새 프레임을 중복으로 버리지 않음 | (없음 → ADR 0005 구현 시 `golden:reboot` 추가) | — | 3단계 |
 | REQ-ALR-01 | 배터리·RSSI·지오펜스 경보 발생, 중복 경보 억제 | `pytest:test_alert_pipeline::*`, `golden:battery_low` | Golden(배터리만) | 3~4단계 |
 | REQ-CMD-01 | 명령은 승인 후에만 전달 | `pytest:test_command_lifecycle::test_approve_auto_dispatches_when_not_expired`, `golden:success` | Golden 기준선 | 4단계 |
 | REQ-CMD-02 | 요청자 본인 승인 금지(403) | `golden:self_approve` | Golden 기준선 | 4단계 |
-| REQ-CMD-03 | 같은 idempotency_key 재요청은 명령 1개 | `golden:idempotent` | Golden 기준선 | 4단계 |
+| REQ-CMD-03 | 같은 idempotency_key 재요청은 명령 1개, 같은 키·id에 내용(type·대상·요청자·payload)이 다르거나 id만 겹치면 409 | `golden:idempotent`, `golden:conflict_type`, `golden:conflict_id`, `pytest:test_command_api::test_same_key_and_id_but_*`, `…::test_reused_command_id_*` | Golden 기준선 | 4단계 |
 | REQ-CMD-04 | 불법 상태 전이 거부(409) | `golden:illegal`, `golden:cancel` | Golden 기준선 | 4단계 |
 | REQ-CMD-05 | ACK 누락·만료 시 종결 상태로 수렴 | `golden:ack_lost` | Golden 기준선 | 4단계(UNKNOWN 결정 후 갱신) |
 | REQ-CMD-06 | Dispatch 직전 권한·통제권·세션·신선도 재검사 | (없음 — 신규 요구) | — | 4단계 신규 |
@@ -115,7 +116,26 @@ TEST-ID 표기: `pytest:<파일>::<함수>`, `golden:<시나리오>`, `contract:
 
 ## 6. Day 1 이후 처리할 결정·공백
 
-- **ADR 0004·0005 승인**(제안 기본값 포함).
+- ~~ADR 0004·0005 승인~~ — 2026-10-24 승인 완료(스키마 소유는 Kotlin/Flyway로 변경).
+- ~~현행 결함 후보 3건(D-1~D-3)~~ — **2026-10-24 "고칠 결함"으로 판단해 legacy에서 수정 완료**(아래 조치 참고).
+  코드 대조로 발견했고, 셋 다 Golden에 없어서 Kotlin이 그대로 복제할 위험이 있었다. 원래 문제:
+
+  | # | 현행 동작(코드 근거) | 기대 동작 | 관련 |
+  |---|---|---|---|
+  | D-1 | 같은 `idempotency_key`·`command_id`·payload에 `command_type`/`target_asset_id`만 달라도 200으로 기존 명령 반환(`command/repository.py` `_reconcile_existing`은 `command_id`·`payload_hash`만 비교). 기존 시험 `test_reused_idempotency_key_with_different_payload_conflicts`는 `_envelope()`가 호출마다 `command_id`를 새로 만들어 409가 나는 것이라 이 경우를 검증하지 못한다 | 409 | REQ-CMD-03 |
+  | D-2 | consumer가 처리 실패 메시지도 `finally`에서 항상 XACK(`telemetry/consumer.py`) → 202를 받은 프레임이 DB 장애 순간에 영구 유실. 손실 시험(REQ-TEL-04)은 네트워크 손실만 다루고 서버 내부 실패는 시험하지 않는다 | 재시도 또는 dead-letter | REQ-TEL-04 |
+  | D-3 | 다른 `idempotency_key`로 이미 있는 `command_id`를 보내면 `flush()`의 기본키 충돌이 키 재조회 실패 후 그대로 `raise`되어 500 | 409 | REQ-CMD-03 |
+
+  **조치(legacy-backend)**:
+  - D-1: `_reconcile_existing`이 `command_id`·`command_type`·`target_asset_id`·`requested_by`·`payload_hash`를 모두 비교(발행·만료 시각은 재시도마다 달라 제외). → 409
+  - D-3: 키 충돌이 아닌 기본키 충돌은 `command_id` 재사용으로 판단해 `IdempotencyConflict`. → 409
+  - D-2: 일시 실패는 XACK하지 않고 `XAUTOCLAIM`(10초 idle)으로 재전달, 영구 실패(payload 없음·계약 위반)와 전달 5회 초과는 dead-letter 스트림(`<telemetry_stream>:dead`)으로 이동 후 ACK. 지표 `aeroops_telemetry_redelivery_total`, `aeroops_telemetry_dead_letter_total{reason}` 추가.
+  - 시험: `test_command_api`(D-1·D-3), `test_consumer_resilience`(D-2, 4건), Golden에 `conflict_type`·`conflict_id` 흐름 추가(기존 52줄 추가·삭제 0).
+  - 실제 장애 검증: 120프레임 전송 중 Postgres 5초 중단 → 이전 코드 접수 120/**저장 109(11건 영구 유실)**, 수정 코드 접수 120/**저장 120**.
+  - **알려진 한계**: 원본 저장 커밋 이후(event_log·경보 판정) 실패해 재처리되면 `is_new=False`라 최신 상태 갱신·경보 판정이 다시 일어나지 않는다. Kotlin Outbox 설계(4단계)에서 해결.
+- **한 프레임 처리의 커밋 범위 이해**: `process_frame`(원본+최신 상태)은 한 트랜잭션이지만 같은 프레임의
+  `event_log`·경보 판정은 그 커밋 이후 별도로 실행된다(`telemetry/consumer.py`). 둘 사이에서 프로세스가
+  죽으면 "저장은 됐는데 재생 기록에는 없는 프레임"이 생길 수 있다. Kotlin의 Outbox 설계(4단계) 입력으로 삼는다.
 - **Golden 시나리오 추가 후보**: `reboot`(ADR 0005), 재동기화, 운용 세션 재생, PENDING_APPROVAL timeout.
   지오펜스·RSSI 경보는 격리 환경이 필요해 보류.
 - **불변조건 3·4번의 진화 방향**: ACK 누락을 `UNKNOWN`으로 유지할지, Dispatch 재검사 항목(권한·통제권·세션·

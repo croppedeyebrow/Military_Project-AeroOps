@@ -82,6 +82,58 @@
         ]
       ]
     },
+    "conflict_id": {
+      "audit": [
+        [
+          "command.create",
+          "operator-1",
+          "SUCCESS"
+        ]
+      ],
+      "events": [
+        [
+          "CREATED",
+          "operator-1"
+        ]
+      ],
+      "final_status": "PENDING_APPROVAL",
+      "steps": [
+        [
+          "create",
+          201
+        ],
+        [
+          "create_other_key",
+          409
+        ]
+      ]
+    },
+    "conflict_type": {
+      "audit": [
+        [
+          "command.create",
+          "operator-1",
+          "SUCCESS"
+        ]
+      ],
+      "events": [
+        [
+          "CREATED",
+          "operator-1"
+        ]
+      ],
+      "final_status": "PENDING_APPROVAL",
+      "steps": [
+        [
+          "create",
+          201
+        ],
+        [
+          "create_other_type",
+          409
+        ]
+      ]
+    },
     "failed": {
       "audit": [
         [

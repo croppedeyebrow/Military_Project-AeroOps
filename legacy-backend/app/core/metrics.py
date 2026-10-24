@@ -31,9 +31,19 @@ telemetry_duplicate_total = Counter(
 
 telemetry_consumer_error_total = Counter(
     "aeroops_telemetry_consumer_error_total",
-    "consumer가 스트림에서 읽은 뒤 처리(재검증·저장)에 실패해 버려진 메시지 수. "
-    "예: --no-real-time 시뮬레이터가 미래 event_time 프레임을 한꺼번에 보내"
-    "received_at >= event_time 규칙을 위반하는 경우",
+    "consumer가 스트림에서 읽은 뒤 처리(재검증·저장)에 실패한 횟수(일시 실패는 재전달되므로 "
+    "같은 메시지가 여러 번 셀 수 있다). 영구 실패·재시도 소진은 dead-letter 지표를 본다",
+)
+
+telemetry_redelivery_total = Counter(
+    "aeroops_telemetry_redelivery_total",
+    "처리 실패로 ACK되지 않아 XAUTOCLAIM으로 다시 가져와 재처리한 횟수",
+)
+
+telemetry_dead_letter_total = Counter(
+    "aeroops_telemetry_dead_letter_total",
+    "dead-letter 스트림으로 보낸 메시지 수(missing_payload·invalid_payload·max_deliveries)",
+    ["reason"],
 )
 
 telemetry_processing_latency_seconds = Histogram(

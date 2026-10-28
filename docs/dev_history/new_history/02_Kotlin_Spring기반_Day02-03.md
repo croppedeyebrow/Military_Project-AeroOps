@@ -1,7 +1,7 @@
 # 2단계 — Kotlin·Spring Boot 기반 (Day 2~3) — 진행 중
 
 - 시작일: 2026-10-24
-- 상태: 2-0 ~ 2-3 완료(실데이터 리허설은 아래 "남은 이슈" 참고), 2-4 이후 진행 예정
+- 상태: 2-0 ~ 2-3 완료(실데이터 리허설 포함), 2-4 이후 진행 예정
 
 ## 관련 문서
 
@@ -83,11 +83,25 @@
   - `incident`가 `command-control`을 import → `Unresolved reference`로 컴파일 실패(Gradle 의존성).
 - 기동 시 `/actuator/health` UP(2-1에서 확인).
 
+### 실제 dev DB 복사본 리허설 (2026-10-28)
+
+자동 시험의 스냅샷은 20행짜리 소규모라, **실제 로컬 dev DB 규모**에서도 같은 결과가 나오는지 따로 확인했다.
+원본은 읽기 전용으로만 쓰고(`pg_dump` 후 즉시 중지해 원래 상태로 복구), 복원한 **복사본**에 앱을 띄웠다.
+
+- 대상: Alembic 0005, 텔레메트리 33,121행·event_log 59,154행·자산 11대 등 11개 테이블(복사본이 원본과 행 수 일치 확인).
+- **baseline 결과**: 기동 15초, `/actuator/health` UP. Flyway 로그가 "schema history table does not exist →
+  creating with baseline → successfully baselined version 1 → up to date, no migration necessary" 순으로,
+  V1을 **실행하지 않고** 기록만 했다(이력 1행, `type=BASELINE`, `execution_time=0`).
+- **데이터 보존**: 모든 테이블 행 수가 원본과 동일, `alembic_version=0005` 유지, 지오메트리도 `POINT Z (...)`로 정상.
+- **재기동**: 이미 baseline된 DB에서 다시 띄워도 "2 migrations validated / up to date"로 통과하고 이력은 1행 그대로다
+  (중복 baseline 없음).
+- **legacy 공존(ADR 0004의 전제를 처음으로 실제 검증)**: Kotlin이 `flyway_schema_history`를 만든 **같은 DB**에서
+  legacy FastAPI가 그대로 동작했다 — `alembic current`가 `0005 (head)`, `alembic upgrade head` 정상, 앱 기동 후
+  기존 자산 11대 조회, 새 텔레메트리 POST 202 → 저장 확인(33,121 → 33,122행). 두 앱을 동시에 띄운 상태에서
+  양쪽 헬스가 모두 정상이었다.
+
 ## 남은 이슈 / 메모
 
-- **실제 dev DB 복사본 리허설은 미수행**: 로컬 dev DB(Alembic 0005, 텔레메트리 33,121행·event_log 59,154행)를
-  읽기 전용으로 덤프해 복사본에 Kotlin 앱을 띄우는 확인을 시도했으나 도구 오류(분류기 무응답)로 완료하지
-  못했다. 스냅샷 기반 시험으로 게이트는 충족하지만 실데이터 규모에서의 baseline 확인은 아직 없다.
 - **CI**: DB 시험은 Docker가 필요하다. 2-5에서 Kotlin CI 잡을 만들 때 Docker 가능 러너를 쓰고, 건너뜀이
   통과로 보이지 않게 "건너뜀 0" 검사를 넣어야 한다.
 - **JPA 엔티티는 아직 없다**: `ddl-auto=validate`는 엔티티가 생기는 3단계부터 실질 검증이 된다.

@@ -66,6 +66,10 @@ Spring 어노테이션을 붙이면 `LayeringRulesTest`가, incident가 command-
 `C2_DB_PASSWORD`. 기본값은 로컬 dev 스택(`infra/docker-compose.yml`)이다. **주의**: 그 DB는 legacy FastAPI와 같은
 DB라서 Kotlin이 처음 접속하면 `flyway_schema_history` 테이블이 생기고 baseline으로 등록된다(데이터는 건드리지 않음).
 
+실제 dev DB 복사본(텔레메트리 33,121행 규모)으로 리허설을 마쳤다 — baseline 기록만 하고 데이터·`alembic_version`은
+그대로였고, **그 뒤에도 legacy FastAPI가 같은 DB에서 정상 동작**(alembic head 인식, 읽기·쓰기, 두 앱 동시 기동)했다.
+자세한 결과는 `docs/dev_history/new_history/02_Kotlin_Spring기반_Day02-03.md`.
+
 새 마이그레이션을 추가할 때의 규칙:
 1. `src/main/resources/db/migration/V<번호>__<컨텍스트>_<설명>.sql`. 번호는 전체에서 유일하게 증가시킨다.
 2. **이미 적용된 파일은 절대 수정하지 않는다**(Flyway가 체크섬을 검증한다). 특히 V1은 건드리지 않는다.

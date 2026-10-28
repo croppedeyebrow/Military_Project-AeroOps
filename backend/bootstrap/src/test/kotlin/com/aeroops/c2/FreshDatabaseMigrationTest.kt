@@ -53,15 +53,22 @@ class FreshDatabaseMigrationTest(
     }
 
     @Test
-    fun `Flyway 이력에 V1이 실제 SQL 실행으로 성공 기록된다`() {
+    fun `빈 DB에서는 모든 마이그레이션이 실제 SQL로 실행된다`() {
         val rows = jdbc.queryForList(
             "select version, type, script, success from flyway_schema_history order by installed_rank",
         )
-        assertEquals(1, rows.size, "이력 행: $rows")
-        assertEquals("1", rows[0]["version"])
-        assertEquals("SQL", rows[0]["type"]) // BASELINE이면 V1이 실행되지 않고 건너뛴 것이다
-        assertEquals("V1__baseline_from_alembic_0005.sql", rows[0]["script"])
-        assertEquals(true, rows[0]["success"])
+        // 빈 DB에는 baseline 처리할 것이 없으므로 모든 파일이 실행된다(type=SQL).
+        assertTrue(rows.isNotEmpty(), "마이그레이션 이력이 비어 있다")
+        assertTrue(rows.all { it["type"] == "SQL" }, "baseline으로 건너뛴 항목이 있다: $rows")
+        assertTrue(rows.all { it["success"] == true }, "실패한 마이그레이션이 있다: $rows")
+        assertEquals("1", rows.first()["version"])
+        assertEquals("V1__baseline_from_alembic_0005.sql", rows.first()["script"])
+        // 파일을 추가하면 이 목록도 함께 바뀐다 — 의도치 않은 누락·중복을 알아차리기 위해 전체를 고정한다.
+        assertEquals(
+            listOf("1", "2"),
+            rows.map { it["version"] },
+            "마이그레이션 구성이 바뀌었다. 의도한 변경이면 이 목록을 갱신한다.",
+        )
     }
 
     @Test

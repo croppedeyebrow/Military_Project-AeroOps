@@ -1,7 +1,7 @@
 # 2단계 — Kotlin·Spring Boot 기반 (Day 2~3) — 진행 중
 
 - 시작일: 2026-10-24
-- 상태: 2-0 ~ 2-3 완료(실데이터 리허설 포함), 2-4 이후 진행 예정
+- 상태: 2-0 ~ 2-4 완료, 2-5(관측성·CI) 남음
 
 ## 관련 문서
 
@@ -18,7 +18,7 @@
 | 2-1 | Kotlin·Spring Boot 골격(멀티모듈), 기동·헬스 확인 | 완료 |
 | 2-2 | 경계 컨텍스트 6종, Modulith·ArchUnit 구조 검증(3겹 방어선) | 완료 |
 | 2-3 | Spring Data JPA + PostgreSQL/PostGIS, Flyway Baseline(빈 DB·기존 DB) | 완료 |
-| 2-4 | Security(OIDC/JWT) 골격, Validation, Outbox 골격 | 예정 |
+| 2-4 | 오류 응답 계약, Security 골격(기본 비활성), Outbox(이벤트 발행 기록) | 완료 |
 | 2-5 | Actuator·Micrometer·OpenTelemetry·JSON 로그, Testcontainers, CI 잡 | 예정 |
 
 ## 구현 내역
@@ -52,8 +52,26 @@
 - 시험 데이터 `legacy-alembic-0005-snapshot.sql`: Alembic으로 만든 DB에 legacy 앱을 **실제로 띄워** 텔레메트리 3건·
   명령 1건을 보내 생긴 데이터를 덤프(20행, 9개 테이블).
 
+### 2-4: 오류 계약·보안 골격·Outbox
+- **오류 응답 계약**(`ApiError.kt`, `ApiErrorHandler`): legacy는 검증 실패에 **422**와
+  `{"detail":[{loc,msg,type}]}`, 업무 오류에 `{"detail":"문자열"}`을 쓴다. Spring 기본값(400, ProblemDetail)과
+  달라서 그대로 두면 계약이 깨진다. 프론트(`frontend/src/api/client.ts`)가 `detail` **문자열**을 그대로 화면에
+  쓰는 것을 확인하고 그 모양에 맞췄다.
+- **Security 골격**(`SecurityConfig`, `MethodSecurityConfig`, `OperationalRole`): JWT 리소스 서버·역할 변환·
+  필터체인을 만들되 **기본은 비보호**(ADR 0006). 역할은 OPERATOR·APPROVER·ANALYST·ADMIN.
+- **Outbox**(`V2__event_publication_outbox.sql`): Modulith의 이벤트 발행 기록을 Transactional Outbox로 쓴다.
+  스키마는 Modulith 표준(jar 내 schema-postgresql.sql)을 옮겼고, 자동 DDL은 꺼서 Flyway가 소유한다.
+
 ## 설계 결정
 
+- **보안을 켜지 않는 이유**(ADR 0006): legacy에 인증이 없어 Kotlin만 인증을 요구하면 Golden Replay로 양쪽을
+  비교할 수 없다. 인프라는 만들되 스위치(`aeroops.security.enabled`)로 두고, **켜면 막히는지**와
+  **꺼지면 열리는지**를 둘 다 시험으로 고정했다("보안을 넣었다"는 착각을 막기 위한 대비).
+- **메서드 보안을 필터체인과 같은 스위치로 묶음**: `@EnableMethodSecurity`를 항상 켜 두면 필터체인이 비보호여도
+  `@PreAuthorize`에서 막혀 전제가 조용히 깨진다.
+- **Outbox를 직접 만들지 않고 Modulith 레지스트리 사용**: 업무 트랜잭션과 같은 커밋으로 기록하고 전달은 이후
+  비동기로 하는 패턴이 이미 구현돼 있다. legacy에서 겪은 "저장은 됐는데 재생 기록에는 없는" 구멍
+  (`planning/13` §6)을 구조적으로 막는 것이 목적이다.
 - **baseline 안전장치를 따로 둠**: `baseline-on-migrate`는 "테이블이 있으면 V1을 건너뛴다"일 뿐 DB가 맞는지
   보지 않는다. 설정 실수로 다른 DB를 가리키면 테이블 없이 "성공"하므로, Alembic 0005 확인을 baseline 직전에 넣었다.
 - **스키마 파일은 생성물**: V1은 사람이 쓴 DDL이 아니라 실제 Alembic 결과의 추출물이라 누락·오타 위험이 낮고,
@@ -71,10 +89,13 @@
 
 ## 테스트/검증
 
-- `./gradlew build` 성공, **시험 42건 통과(건너뜀 0)**: `AssetId` 2, `BootId` 5, `ObservationKey` 4,
-  `ModularityTest` 9, `LayeringRulesTest` 7, 그리고 2-3의 마이그레이션 게이트 15건 —
-  `FreshDatabaseMigrationTest` 4, `LegacyDatabaseMigrationTest` 4, `SchemaEquivalenceTest` 1, `LegacySchemaGuardTest` 6.
-  (DB 시험은 Docker가 없으면 건너뛰므로, 결과 파일에서 건너뜀 0을 확인했다.)
+- `./gradlew build` 성공, **시험 66건 통과(건너뜀 0)**. 2-2까지 28건 + 2-3 마이그레이션 게이트 16건
+  (`FreshDatabaseMigrationTest` 4, `LegacyDatabaseMigrationTest` 5, `SchemaEquivalenceTest` 1, `LegacySchemaGuardTest` 6)
+  + 2-4의 22건(`ApiErrorContractTest` 8, `SecurityDisabledTest` 2, `SecurityEnabledTest` 7, `OperationalRoleTest` 3,
+  `EventPublicationOutboxTest` 3). DB 시험은 Docker가 없으면 건너뛰므로 결과 파일에서 건너뜀 0을 확인했다.
+- **V2 추가가 기존 시험을 깨뜨린 것이 수확**: 마이그레이션 이력을 "1행"으로 고정해 둔 시험 2건이 실패했다.
+  시험이 스키마 변경을 실제로 감지한다는 증거다. 이를 계기로 "V1은 baseline으로 건너뛰되 **그 이후
+  마이그레이션은 기존 DB에도 적용된다**"는 더 중요한 사실을 시험으로 고정했다(Expand 전략의 근거).
 - **게이트 시험이 진짜 결함을 잡는지 변이로 확인(원상복구함)**:
   - V1에서 `CREATE INDEX` 한 줄 삭제 → `SchemaEquivalenceTest` 실패.
   - `baseline-on-migrate: false`로 변경 → `LegacyDatabaseMigrationTest` 4건 실패.
@@ -105,6 +126,12 @@
 - **CI**: DB 시험은 Docker가 필요하다. 2-5에서 Kotlin CI 잡을 만들 때 Docker 가능 러너를 쓰고, 건너뜀이
   통과로 보이지 않게 "건너뜀 0" 검사를 넣어야 한다.
 - **JPA 엔티티는 아직 없다**: `ddl-auto=validate`는 엔티티가 생기는 3단계부터 실질 검증이 된다.
+- **보안은 꺼져 있다**: 전환 기간의 Kotlin API는 인증 없이 접근된다(ADR 0006). 외부 노출하지 않는 것을
+  전제로 하며, 켜는 시점의 선행 조건(OIDC 공급자, 프론트 토큰, Golden Replay 토큰)은 ADR에 적었다.
+- **오류 응답의 `type` 값은 legacy와 다르다**: 구조(422·detail 배열·loc/msg/type)는 같지만 값은 Spring 제약
+  이름이다. 프론트가 이 필드를 쓰지 않아 영향이 없음을 확인했다.
+- **실제 dev DB에는 다음 기동 때 V2가 적용된다**: 리허설에서 쓴 복사본이 아니라 실제 DB에 Kotlin을 처음
+  띄우면 `event_publication` 테이블이 생긴다(새 테이블 추가라 legacy에는 영향 없음).
 
 - 레이어 패키지(`application`, `adapter.*`)는 아직 실제 클래스가 없다(빈 패키지는 git에 남지 않음). 첫 클래스가
   생길 때 만든다. 현재 실제 코드의 Modulith 모듈 간 검증은 의존이 없어 비어 있는 채로 통과하며, 3단계부터

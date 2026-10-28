@@ -31,6 +31,9 @@ dependencies {
     implementation("tools.jackson.module:jackson-module-kotlin")
     // 모듈 구조를 런타임/시험에서 읽는 Modulith 코어(ApplicationModules 등)
     implementation("org.springframework.modulith:spring-modulith-starter-core")
+    // 이벤트 발행 기록(Transactional Outbox) — 업무 트랜잭션과 같은 커밋으로 event_publication에 남기고,
+    // 전달은 그 뒤 비동기로 한다(V2 마이그레이션, EventPublicationOutboxTest 참고).
+    implementation("org.springframework.modulith:spring-modulith-starter-jpa")
 
     // --- 영속성 (Unit 2-3) -------------------------------------------------------------
     // JPA: Aggregate 단위 저장(planning/02 "Spring 기술 선택"). 엔티티는 각 컨텍스트의 adapter.outbound에 둘
@@ -44,6 +47,13 @@ dependencies {
     // PostGIS geometry 컬럼(position, geom, route)을 JPA 엔티티에 매핑하기 위한 Hibernate 공간 확장
     implementation("org.hibernate.orm:hibernate-spatial")
 
+    // --- 보안 골격 (Unit 2-4) ----------------------------------------------------------
+    // 인증·인가 뼈대. 단, 기본 설정에서는 어떤 경로도 보호하지 않는다 — legacy에 인증이 없어서
+    // Kotlin만 인증을 요구하면 Golden Replay로 양쪽을 비교할 수 없기 때문(SecurityConfig 주석, ADR 0006).
+    implementation("org.springframework.boot:spring-boot-starter-security")
+    // JWT를 검증하는 리소스 서버. 토큰 발급은 외부 OIDC 공급자가 하고 우리는 검증만 한다(8단계에서 연동).
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
+
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     // ApplicationModules.verify()·모듈 문서 생성 등 시험용 지원
     testImplementation("org.springframework.modulith:spring-modulith-starter-test")
@@ -53,4 +63,6 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
+    // 보안을 켰을 때 "실제로 막히는지"를 시험하기 위한 지원(가짜 JWT 주입 등)
+    testImplementation("org.springframework.security:spring-security-test")
 }

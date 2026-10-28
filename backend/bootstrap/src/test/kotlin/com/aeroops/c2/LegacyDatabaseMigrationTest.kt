@@ -41,14 +41,31 @@ class LegacyDatabaseMigrationTest(@Autowired private val jdbc: JdbcTemplate) {
         jdbc.queryForObject("select count(*) from $table", Int::class.java)!!
 
     @Test
-    fun `Flyway 이력에는 BASELINE 한 행만 있고 V1은 다시 실행되지 않는다`() {
+    fun `V1은 baseline으로 건너뛰고 그 이후 마이그레이션은 실제로 적용된다`() {
         val rows = jdbc.queryForList(
             "select version, type, success from flyway_schema_history order by installed_rank",
         )
-        assertEquals(1, rows.size, "이력 행: $rows")
-        assertEquals("1", rows[0]["version"])
-        assertEquals("BASELINE", rows[0]["type"])
-        assertEquals(true, rows[0]["success"])
+        // V1(= Alembic이 이미 만든 스키마)은 실행하면 "이미 존재한다"로 실패하므로 건너뛰어야 한다.
+        assertEquals("1", rows.first()["version"])
+        assertEquals("BASELINE", rows.first()["type"])
+        // 그러나 baseline **이후**의 마이그레이션은 기존 DB에도 적용되어야 한다. 그렇지 않으면 새 DB와
+        // 기존 DB의 스키마가 갈라진다(ADR 0004의 Expand 전용 변경 규칙이 성립하는 근거).
+        val afterBaseline = rows.drop(1)
+        assertTrue(afterBaseline.isNotEmpty(), "baseline 이후 마이그레이션이 적용되지 않았다: $rows")
+        assertTrue(afterBaseline.all { it["type"] == "SQL" }, "baseline 이후 항목이 실행되지 않았다: $rows")
+        assertTrue(rows.all { it["success"] == true }, "실패한 마이그레이션이 있다: $rows")
+    }
+
+    @Test
+    fun `baseline 이후 추가된 테이블이 기존 DB에도 만들어진다`() {
+        // V2가 추가한 이벤트 발행 기록 테이블 — 기존 데이터를 건드리지 않는 "새 테이블 추가"(Expand)라
+        // legacy가 쓰는 DB에도 안전하게 적용된다.
+        val tables = jdbc.queryForList(
+            "select table_name from information_schema.tables where table_schema = 'public'",
+            String::class.java,
+        ).toSet()
+        assertTrue("event_publication" in tables, "V2의 테이블이 기존 DB에 없다")
+        assertTrue("event_publication_archive" in tables, "V2의 보관 테이블이 기존 DB에 없다")
     }
 
     @Test

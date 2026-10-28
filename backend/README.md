@@ -20,8 +20,8 @@ FastAPI(`../legacy-backend/`)를 점진적으로 대체하는 지휘통제(C2) �
 operational-picture·safety-policy·audit)는 다른 컨텍스트를 모르고, 하류(command-control·incident)만 상류를
 안다. `command-control`과 `incident`는 서로를 모른다(경보는 명령 처리와 독립이어야 하므로).
 
-영속성(JPA·PostGIS·Flyway)은 2-3에서 연결했다(아래 "DB와 마이그레이션"). 보안(OIDC/JWT)·Outbox·관측성·CI는
-후속 유닛에서 추가한다.
+영속성(JPA·PostGIS·Flyway)은 2-3, 오류 계약·보안 골격·Outbox는 2-4에서 추가했다(아래 각 절). 관측성·CI는
+2-5에서 다룬다.
 
 ## 모듈 내부 구조
 
@@ -51,6 +51,49 @@ com.aeroops.c2.<context>/        ← 모듈 기본 패키지 = 다른 모듈에 
 "규칙이 있다"가 아니라 "규칙이 작동한다"를 보이려고, 위반 샘플(`bootstrap/src/test/.../archfixture`)에서
 검사가 실패하고 정상 대조군에서 통과하는 것까지 시험한다. 실제 모듈 코드에서도 직접 확인했다 — domain에
 Spring 어노테이션을 붙이면 `LayeringRulesTest`가, incident가 command-control을 import하면 컴파일이 막힌다.
+
+## API 오류 응답 계약
+
+legacy FastAPI와 **같은 모양**을 내야 React를 고치지 않고 갈아끼울 수 있다(ADR 0004).
+
+| 상황 | 상태 | 본문 |
+|---|---|---|
+| 업무 오류(권한·없음·충돌) | 던진 쪽이 지정 (403·404·409 …) | `{"detail": "메시지"}` — 프론트가 그대로 화면에 쓴다 |
+| 검증 실패(본문·파라미터) | **422** (Spring 기본값 400이 아니다) | `{"detail": [{loc, msg, type}]}` |
+
+어댑터는 도메인 예외를 `ApiErrorException(status, message)`로 바꿔 던지고, 나머지는 `ApiErrorHandler`가 처리한다.
+`type` 값은 Spring 제약 이름이라 legacy(Pydantic)와 다르지만, 프론트가 쓰지 않는 필드임을 확인했다.
+
+## 보안 (기본 비활성 — ADR 0006)
+
+**전환 기간에는 어떤 경로도 보호하지 않는다.** legacy에 인증이 없어서, Kotlin만 인증을 요구하면 Golden Replay로
+양쪽을 비교할 수 없기 때문이다. 인프라는 만들어 두고 스위치로 켠다.
+
+```bash
+# 켜기(8단계에 실제 OIDC 공급자와 함께)
+aeroops.security.enabled=true
+spring.security.oauth2.resourceserver.jwt.issuer-uri=<공급자>
+```
+
+켜면 헬스를 뺀 모든 요청에 유효한 JWT가 필요하고, JWT의 `roles` 클레임이 `OperationalRole`
+(OPERATOR·APPROVER·ANALYST·ADMIN) 권한으로 변환된다. 메서드 보안(`@PreAuthorize`)도 같은 스위치로 함께 켜진다.
+**두 상태 모두 시험으로 고정돼 있다** — `SecurityEnabledTest`(켜면 401·403으로 막힘), `SecurityDisabledTest`(꺼지면 열림).
+
+## 이벤트 발행 기록 (Transactional Outbox)
+
+업무 트랜잭션과 **같은 커밋**으로 "보낼 이벤트"를 `event_publication`에 남기고, 전달은 그 뒤 비동기로 한다.
+Spring Modulith의 발행 레지스트리를 쓰며, 스키마는 Flyway V2가 소유한다(Modulith 자동 DDL은 껐다).
+
+```kotlin
+// 발행: 업무 트랜잭션 안에서
+publisher.publishEvent(SomethingHappened(...))
+
+// 수신: 커밋 이후 비동기 실행, 실패하면 기록이 미완료로 남아 재시도 대상이 된다
+@ApplicationModuleListener
+fun on(event: SomethingHappened) { ... }
+```
+
+리스너 클래스·메서드는 `open`이어야 한다(Spring이 프록시로 감싸는데 Kotlin은 기본이 final).
 
 ## DB와 마이그레이션 (Flyway)
 

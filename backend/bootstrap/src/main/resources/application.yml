@@ -2,7 +2,32 @@ spring:
   application:
     name: aeroops-c2-core
 
-# legacy FastAPI가 8000을 쓰므로 전환 기간에는 겹치지 않게 8080을 쓴다.
+  # 접속 정보는 환경변수로 덮어쓴다(비밀번호를 코드에 두지 않기 위해). 기본값은 로컬 dev 스택
+  # (infra/docker-compose.yml의 postgres, 호스트 포트 5433)과 같다.
+  # 주의: 이 DB는 legacy FastAPI와 같은 DB다. 처음 접속하면 Flyway가 flyway_schema_history 테이블을 만들고
+  # baseline(V1)으로 등록한다 — 기존 데이터는 건드리지 않는다(db/migration/V1 헤더, LegacySchemaGuard).
+  datasource:
+    url: ${C2_DB_URL:jdbc:postgresql://localhost:5433/aeroops}
+    username: ${C2_DB_USER:aeroops}
+    password: ${C2_DB_PASSWORD:aeroops}
+
+  jpa:
+    # 요청 처리가 끝난 뒤에도 영속성 컨텍스트가 열려 있으면 컨트롤러에서 지연 로딩이 새어 나가
+    # 트랜잭션 경계가 흐려진다. 경계는 application 레이어가 정한다(planning/02 원칙).
+    open-in-view: false
+    hibernate:
+      # 스키마는 Flyway만 바꾼다. 엔티티와 실제 스키마가 어긋나면 기동 시점에 실패시키려고 validate를 쓴다
+      # (update/create는 JPA가 몰래 DDL을 바꿔 "단일 쓰기 주체" 원칙(ADR 0004)을 깬다).
+      ddl-auto: validate
+
+  flyway:
+    locations: classpath:db/migration
+    # 이미 Alembic 0005까지 적용된 기존 DB를 V1로 baseline 처리한다. 빈 DB는 V1을 실제로 실행한다.
+    # 위험(엉뚱한 DB를 baseline 처리)은 LegacySchemaGuard가 막는다.
+    baseline-on-migrate: true
+    baseline-version: "1"
+    baseline-description: "legacy Alembic 0005 schema"
+
 server:
   port: 8080
 

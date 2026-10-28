@@ -3,6 +3,12 @@
 [versions]
 spring-boot = "4.1.2"
 kotlin = "2.3.21"
+# 경계 컨텍스트 모듈 경계 검증(Unit 2-2). Boot BOM이 관리하지 않아 별도 BOM으로 가져온다.
+# 정식 릴리스 최신(2.1.2)을 택했다(2.2.0은 아직 RC). 호환 여부는 bootstrap의 ModularityTest가 증명한다.
+spring-modulith = "2.1.2"
+# 모듈 내부 레이어 규칙(domain이 Spring을 모른다 등) 검증. Modulith가 모듈 "사이"를 본다면
+# ArchUnit은 모듈 "안"을 본다(역할 분담은 bootstrap/src/test의 LayeringRulesTest 주석 참고).
+archunit = "1.5.1"
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

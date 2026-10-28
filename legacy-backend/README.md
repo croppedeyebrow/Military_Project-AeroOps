@@ -1,4 +1,14 @@
-# AeroOps Backend
+# AeroOps Backend (legacy — FastAPI)
+
+> **전환 중(ADR 0004)**: 이 FastAPI 구현은 Kotlin C2 Core(`../backend/`)가 대체해 가는 기준 구현이다.
+> 삭제하지 않고 Golden Replay·계약 기준선의 비교 대상이자 전환 기간 운영 구현으로 유지한다.
+>
+> **스키마 소유는 이제 Kotlin(Flyway)이다. Alembic은 `0005`에서 동결됐다.**
+> - 이 모듈에 새 Alembic 마이그레이션(`0006` 이상)을 추가하지 않는다. DB 변경은 `../backend/`의
+>   `bootstrap/src/main/resources/db/migration/`에 Flyway 파일(V2 이상)로 한다.
+> - Flyway 변경은 이 모듈이 깨지지 않는 **Expand 전용**(컬럼 추가·새 테이블)이어야 한다(ADR 0004 "영향").
+> - `alembic upgrade head`는 계속 동작한다(0005까지). 빈 DB를 만들 때는 둘 중 하나를 쓰면 같은 스키마가
+>   된다 — 두 경로의 동등성은 Kotlin 쪽 `SchemaEquivalenceTest`가 매번 검증한다.
 
 FastAPI 기반 모듈형 모놀리스. `docs/planning/02_백엔드_아키텍처.md` 참고.
 

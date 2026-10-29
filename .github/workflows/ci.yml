@@ -48,6 +48,54 @@ jobs:
       - name: Test
         run: pytest
 
+  # Kotlin C2 Core(전환 대상 구현). 2단계 완료 게이트가 "모듈 금지 의존성이 CI에서 차단된다"이므로
+  # 이 잡이 있어야 게이트가 성립한다 — 구조 검증(ModularityTest·LayeringRulesTest)과 마이그레이션
+  # 게이트가 여기서 매번 돌아간다.
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+      # Testcontainers가 실제 PostGIS 컨테이너를 띄운다(마이그레이션·Outbox·관측성 시험).
+      # ubuntu-latest 러너에는 Docker가 있으므로 별도 service 컨테이너 설정이 필요 없다.
+      - name: Build and test
+        run: ./gradlew build --no-daemon
+      # 중요: DB가 필요한 시험은 Docker가 없으면 **조용히 건너뛴다**(@Testcontainers(disabledWithoutDocker)).
+      # 그러면 아무것도 검증하지 않고도 초록불이 된다. 건너뛴 시험이 하나라도 있으면 실패시킨다.
+      - name: Fail if any test was skipped
+        run: |
+          python3 - <<'PY'
+          import glob, sys, xml.etree.ElementTree as ET
+          total = skipped = failed = 0
+          files = glob.glob("*/build/test-results/test/*.xml")
+          if not files:
+              sys.exit("시험 결과 파일이 없다 — 시험이 실행되지 않았다")
+          for path in files:
+              suite = ET.parse(path).getroot()
+              total += int(suite.get("tests", 0))
+              skipped += int(suite.get("skipped", 0))
+              failed += int(suite.get("failures", 0)) + int(suite.get("errors", 0))
+          print(f"tests={total} skipped={skipped} failed={failed}")
+          if skipped:
+              sys.exit(f"건너뛴 시험 {skipped}건 — Docker 없이 DB 시험이 생략됐을 수 있다")
+          if total == 0:
+              sys.exit("실행된 시험이 0건이다")
+          PY
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-reports
+          path: backend/*/build/reports/tests/test
+
   simulator:
     runs-on: ubuntu-latest
     defaults:

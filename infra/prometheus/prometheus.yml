@@ -2,7 +2,16 @@ global:
   scrape_interval: 5s
 
 scrape_configs:
+  # legacy FastAPI. prometheus_client가 /metrics에 직접 노출한다(legacy-backend/app/core/metrics.py).
   - job_name: aeroops-api
     metrics_path: /metrics
     static_configs:
       - targets: ["api:8000"]
+
+  # Kotlin C2 Core. Actuator가 /actuator/prometheus에 노출한다(경로가 legacy와 다르다).
+  # 전환 기간에는 두 구현이 동시에 수집되므로, 어느 쪽 수치인지는 job 라벨과 메트릭의 application
+  # 태그(backend/bootstrap/src/main/resources/application.yml)로 구분한다.
+  - job_name: aeroops-c2-core
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["c2-core:8080"]

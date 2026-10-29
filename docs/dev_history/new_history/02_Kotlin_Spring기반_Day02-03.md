@@ -1,7 +1,7 @@
-# 2단계 — Kotlin·Spring Boot 기반 (Day 2~3) — 진행 중
+# 2단계 — Kotlin·Spring Boot 기반 (Day 2~3) — 완료
 
 - 시작일: 2026-10-24
-- 상태: 2-0 ~ 2-4 완료, 2-5(관측성·CI) 남음
+- 상태: **완료**(2026-10-28). 완료 게이트 2개 모두 충족 — 아래 "완료 게이트" 참고
 
 ## 관련 문서
 
@@ -19,7 +19,7 @@
 | 2-2 | 경계 컨텍스트 6종, Modulith·ArchUnit 구조 검증(3겹 방어선) | 완료 |
 | 2-3 | Spring Data JPA + PostgreSQL/PostGIS, Flyway Baseline(빈 DB·기존 DB) | 완료 |
 | 2-4 | 오류 응답 계약, Security 골격(기본 비활성), Outbox(이벤트 발행 기록) | 완료 |
-| 2-5 | Actuator·Micrometer·OpenTelemetry·JSON 로그, Testcontainers, CI 잡 | 예정 |
+| 2-5 | 관측성(메트릭·추적·로그), Dockerfile·compose·Prometheus 연결, CI 잡 | 완료 |
 
 ## 구현 내역
 
@@ -62,6 +62,21 @@
 - **Outbox**(`V2__event_publication_outbox.sql`): Modulith의 이벤트 발행 기록을 Transactional Outbox로 쓴다.
   스키마는 Modulith 표준(jar 내 schema-postgresql.sql)을 옮겼고, 자동 DDL은 꺼서 Flyway가 소유한다.
 
+### 2-5: 관측성·컨테이너·CI
+- **관측성**: Actuator `/actuator/prometheus`(legacy의 `/metrics`와 경로가 다르다), 모든 메트릭에
+  `application` 태그, traceId·spanId를 로그 패턴에 포함, `C2_LOG_FORMAT=ecs`로 JSON 로그 전환.
+- **컨테이너·수집 연결**: `backend/Dockerfile`(멀티스테이지, 비루트), compose에 `c2-core` 서비스,
+  `infra/prometheus/prometheus.yml`에 `aeroops-c2-core` 잡 추가.
+- **CI**: `.github/workflows/ci.yml`에 `backend` 잡 추가. 여기서 구조 검증과 마이그레이션 게이트가 돌아
+  "금지 의존성이 CI에서 차단된다"는 완료 게이트가 성립한다. **건너뛴 시험이 있으면 실패**시키는 검사도 넣었다.
+
+## 완료 게이트 (2단계)
+
+| 게이트 | 충족 근거 |
+|---|---|
+| 빈 DB와 기존 DB 스냅샷 모두에서 Migration 성공 | `FreshDatabaseMigrationTest`·`LegacyDatabaseMigrationTest`·`SchemaEquivalenceTest`, 그리고 실제 dev DB(텔레메트리 33,121행) 리허설 |
+| 모듈 금지 의존성이 CI에서 차단 | `ModularityTest`·`LayeringRulesTest`가 CI `backend` 잡에서 실행. 실제 코드를 망가뜨려 차단되는 것까지 확인 |
+
 ## 설계 결정
 
 - **보안을 켜지 않는 이유**(ADR 0006): legacy에 인증이 없어 Kotlin만 인증을 요구하면 Golden Replay로 양쪽을
@@ -89,10 +104,17 @@
 
 ## 테스트/검증
 
-- `./gradlew build` 성공, **시험 66건 통과(건너뜀 0)**. 2-2까지 28건 + 2-3 마이그레이션 게이트 16건
+- `./gradlew build` 성공, **시험 71건 통과(건너뜀 0)**. 2-2까지 28건 + 2-3 마이그레이션 게이트 16건
   (`FreshDatabaseMigrationTest` 4, `LegacyDatabaseMigrationTest` 5, `SchemaEquivalenceTest` 1, `LegacySchemaGuardTest` 6)
   + 2-4의 22건(`ApiErrorContractTest` 8, `SecurityDisabledTest` 2, `SecurityEnabledTest` 7, `OperationalRoleTest` 3,
-  `EventPublicationOutboxTest` 3). DB 시험은 Docker가 없으면 건너뛰므로 결과 파일에서 건너뜀 0을 확인했다.
+  `EventPublicationOutboxTest` 3) + 2-5의 `ObservabilityTest` 5. DB 시험은 Docker가 없으면 건너뛰므로 결과
+  파일에서 건너뜀 0을 확인했고, 같은 검사를 CI에도 넣었다.
+- **관측성 실제 연결 확인**: compose로 legacy api와 c2-core를 나란히 띄우고 Prometheus가 **두 구현을 모두
+  수집**하는 것을 확인했다(`aeroops-api` up, `aeroops-c2-core` up, Kotlin JVM 메트릭 8개 시계열,
+  `application=aeroops-c2-core` 태그). 설정만 보고 넘어갔다면 경로 차이(`/metrics` vs `/actuator/prometheus`)를
+  놓쳤을 수 있다.
+- **실제 dev DB에 Kotlin을 처음 연결**: 예고한 대로 V1은 BASELINE으로 기록되고 V2(event_publication)가
+  적용됐다. 기존 데이터는 그대로다(telemetry_frames 33,121 / event_log 59,154 / assets 11, alembic_version 0005).
 - **V2 추가가 기존 시험을 깨뜨린 것이 수확**: 마이그레이션 이력을 "1행"으로 고정해 둔 시험 2건이 실패했다.
   시험이 스키마 변경을 실제로 감지한다는 증거다. 이를 계기로 "V1은 baseline으로 건너뛰되 **그 이후
   마이그레이션은 기존 DB에도 적용된다**"는 더 중요한 사실을 시험으로 고정했다(Expand 전략의 근거).
@@ -130,8 +152,11 @@
   전제로 하며, 켜는 시점의 선행 조건(OIDC 공급자, 프론트 토큰, Golden Replay 토큰)은 ADR에 적었다.
 - **오류 응답의 `type` 값은 legacy와 다르다**: 구조(422·detail 배열·loc/msg/type)는 같지만 값은 Spring 제약
   이름이다. 프론트가 이 필드를 쓰지 않아 영향이 없음을 확인했다.
-- **실제 dev DB에는 다음 기동 때 V2가 적용된다**: 리허설에서 쓴 복사본이 아니라 실제 DB에 Kotlin을 처음
-  띄우면 `event_publication` 테이블이 생긴다(새 테이블 추가라 legacy에는 영향 없음).
+- **실제 dev DB는 이미 Kotlin이 한 번 붙었다**(2-5 검증 중): `flyway_schema_history`와
+  `event_publication`·`event_publication_archive` 테이블이 생겼다. 기존 데이터·`alembic_version`은 그대로이고
+  legacy도 정상 동작한다(리허설에서 검증한 그대로).
+- **추적 수집기가 없다**: traceId는 로그에 찍히지만 보낼 곳이 없다. Jaeger/Tempo 연동은 이후 단계.
+- **업무 메트릭(`aeroops_*`)은 아직 없다**: Kotlin은 JVM·HTTP 기본 메트릭만 낸다. 3단계부터 기능과 함께 추가한다.
 
 - 레이어 패키지(`application`, `adapter.*`)는 아직 실제 클래스가 없다(빈 패키지는 git에 남지 않음). 첫 클래스가
   생길 때 만든다. 현재 실제 코드의 Modulith 모듈 간 검증은 의존이 없어 비어 있는 채로 통과하며, 3단계부터

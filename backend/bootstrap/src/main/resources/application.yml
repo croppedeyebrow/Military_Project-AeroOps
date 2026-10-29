@@ -46,9 +46,30 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        # prometheus: 메트릭 수집(infra/prometheus/prometheus.yml이 /actuator/prometheus를 긁는다)
+        # 운영 노출 범위는 8단계 보안 검토에서 다시 정한다 — 지금은 내부망 전제(ADR 0006).
+        include: health,info,prometheus,metrics
   endpoint:
     health:
       # 배포 도구(Go opsctl Health Gate 등)가 구분해서 볼 수 있게 liveness/readiness를 분리한다.
       probes:
         enabled: true
+  metrics:
+    tags:
+      # 전환 기간에는 legacy와 Kotlin이 같은 Prometheus로 수집된다. 이 태그로 어느 구현의 수치인지
+      # 구분한다(대시보드에서 두 값을 겹쳐 보며 전환 전후를 비교하기 위함).
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      # 개발·전환 기간에는 전부 수집한다. 운영 트래픽에서는 낮춰야 한다(8단계).
+      probability: 1.0
+
+logging:
+  pattern:
+    # traceId·spanId를 로그에 넣어 한 요청의 처리 흐름을 추적한다. 수집기가 없어도 로그만으로 쓸 수 있다.
+    correlation: "[${spring.application.name},%X{traceId:-},%X{spanId:-}] "
+  # 구조화(JSON) 로그는 환경변수로 켠다 — 컨테이너·로그 수집기 환경에서는 ecs, 로컬 개발에서는 사람이
+  # 읽기 좋은 기본 형식을 쓰기 위해서다(예: C2_LOG_FORMAT=ecs).
+  structured:
+    format:
+      console: ${C2_LOG_FORMAT:}

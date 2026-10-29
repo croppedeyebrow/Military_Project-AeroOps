@@ -20,8 +20,8 @@ FastAPI(`../legacy-backend/`)를 점진적으로 대체하는 지휘통제(C2) �
 operational-picture·safety-policy·audit)는 다른 컨텍스트를 모르고, 하류(command-control·incident)만 상류를
 안다. `command-control`과 `incident`는 서로를 모른다(경보는 명령 처리와 독립이어야 하므로).
 
-영속성(JPA·PostGIS·Flyway)은 2-3, 오류 계약·보안 골격·Outbox는 2-4에서 추가했다(아래 각 절). 관측성·CI는
-2-5에서 다룬다.
+영속성(JPA·PostGIS·Flyway)은 2-3, 오류 계약·보안 골격·Outbox는 2-4, 관측성·컨테이너·CI는 2-5에서 추가했다
+(아래 각 절). **2단계는 여기서 끝난다** — 다음은 3단계 Operational Picture다.
 
 ## 모듈 내부 구조
 
@@ -51,6 +51,29 @@ com.aeroops.c2.<context>/        ← 모듈 기본 패키지 = 다른 모듈에 
 "규칙이 있다"가 아니라 "규칙이 작동한다"를 보이려고, 위반 샘플(`bootstrap/src/test/.../archfixture`)에서
 검사가 실패하고 정상 대조군에서 통과하는 것까지 시험한다. 실제 모듈 코드에서도 직접 확인했다 — domain에
 Spring 어노테이션을 붙이면 `LayeringRulesTest`가, incident가 command-control을 import하면 컴파일이 막힌다.
+
+## 관측성 (메트릭·추적·로그)
+
+| 항목 | 노출 위치 | 비고 |
+|---|---|---|
+| 메트릭 | `/actuator/prometheus` | legacy는 `/metrics`로 경로가 다르다. 두 구현이 같은 Prometheus에 수집된다 |
+| 구분 태그 | 모든 메트릭에 `application=aeroops-c2-core` | 전환 전후 수치를 대시보드에서 구분하기 위함 |
+| 추적 | traceId·spanId가 로그에 포함 | 수집기(Jaeger/Tempo)는 아직 없다. 샘플링 100%(운영에서는 낮춘다) |
+| 로그 | 기본은 사람이 읽는 형식 | `C2_LOG_FORMAT=ecs`로 JSON 전환(컨테이너에서는 자동 적용) |
+
+`infra/prometheus/prometheus.yml`에 `aeroops-c2-core` 잡이 등록돼 있고, 실제로 두 구현이 동시에 수집되는 것을
+확인했다. 업무 메트릭(`aeroops_*`)은 3단계부터 기능과 함께 추가한다.
+
+## 컨테이너로 실행
+
+```bash
+# 저장소 루트에서 — legacy api(8000)와 c2-core(8080)가 나란히 뜬다
+docker compose -f infra/docker-compose.yml --env-file infra/.env up -d postgres c2-core
+curl http://localhost:8080/actuator/health
+```
+
+`backend/Dockerfile`은 멀티스테이지다(빌드는 JDK, 실행은 JRE + 비루트 사용자). 이미지 빌드 중에는 시험을
+돌리지 않는다 — Testcontainers가 Docker를 요구하기 때문이고, 시험은 CI에서 돈다.
 
 ## API 오류 응답 계약
 
@@ -155,6 +178,16 @@ baseline 설정을 꺼서 확인했다.
 | Testcontainers | 2.0.5 | Spring Boot BOM 관리, 이미지 `postgis/postgis:16-3.4-alpine` |
 
 버전은 `gradle/libs.versions.toml`에서만 바꾼다.
+
+## CI
+
+`.github/workflows/ci.yml`의 `backend` 잡이 매 push·PR마다 `./gradlew build`를 돌린다. 여기서 구조 검증
+(`ModularityTest`·`LayeringRulesTest`)과 마이그레이션 게이트가 실행되므로, **금지된 의존성이나 스키마 불일치는
+CI에서 차단된다**(2단계 완료 게이트).
+
+주의할 점이 하나 있다. DB가 필요한 시험은 Docker가 없으면 **조용히 건너뛴다**. 그러면 아무것도 검증하지 않고도
+초록불이 된다. 그래서 CI에 "건너뛴 시험이 하나라도 있으면 실패" 검사를 넣었다. 로컬에서도 같은 기준으로 보려면
+결과 XML의 `skipped`가 0인지 확인하면 된다.
 
 ## 실행·시험
 

@@ -47,6 +47,14 @@ dependencies {
     // PostGIS geometry 컬럼(position, geom, route)을 JPA 엔티티에 매핑하기 위한 Hibernate 공간 확장
     implementation("org.hibernate.orm:hibernate-spatial")
 
+    // --- 관측성 (Unit 2-5) -------------------------------------------------------------
+    // Prometheus 형식으로 메트릭을 내보낸다. legacy(api:8000/metrics)와 나란히 수집되며 job 라벨로 구분한다
+    // (infra/prometheus/prometheus.yml). 업무 메트릭(aeroops_*)은 3단계부터 기능과 함께 추가한다.
+    runtimeOnly("io.micrometer:micrometer-registry-prometheus")
+    // 분산 추적. 지금은 수집기(Jaeger/Tempo)가 없어 전송하지 않지만, traceId가 로그에 찍혀 한 요청의
+    // 처리 흐름을 추적할 수 있다 — 전환 중 "legacy와 Kotlin 중 어디서 느려졌나"를 보려면 필요하다.
+    implementation("io.micrometer:micrometer-tracing-bridge-otel")
+
     // --- 보안 골격 (Unit 2-4) ----------------------------------------------------------
     // 인증·인가 뼈대. 단, 기본 설정에서는 어떤 경로도 보호하지 않는다 — legacy에 인증이 없어서
     // Kotlin만 인증을 요구하면 Golden Replay로 양쪽을 비교할 수 없기 때문(SecurityConfig 주석, ADR 0006).

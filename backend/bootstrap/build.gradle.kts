@@ -47,6 +47,9 @@ dependencies {
     // PostGIS geometry 컬럼(position, geom, route)을 JPA 엔티티에 매핑하기 위한 Hibernate 공간 확장
     implementation("org.hibernate.orm:hibernate-spatial")
 
+    // Redis 연결(3-4). legacy가 발행한 텔레메트리 스트림을 Kotlin이 별도 consumer group으로 읽는다.
+    implementation("org.springframework.boot:spring-boot-starter-data-redis")
+
     // --- 관측성 (Unit 2-5) -------------------------------------------------------------
     // Prometheus 형식으로 메트릭을 내보낸다. legacy(api:8000/metrics)와 나란히 수집되며 job 라벨로 구분한다
     // (infra/prometheus/prometheus.yml). 업무 메트릭(aeroops_*)은 3단계부터 기능과 함께 추가한다.

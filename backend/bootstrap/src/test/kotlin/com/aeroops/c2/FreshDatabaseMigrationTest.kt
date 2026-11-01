@@ -65,7 +65,7 @@ class FreshDatabaseMigrationTest(
         assertEquals("V1__baseline_from_alembic_0005.sql", rows.first()["script"])
         // 파일을 추가하면 이 목록도 함께 바뀐다 — 의도치 않은 누락·중복을 알아차리기 위해 전체를 고정한다.
         assertEquals(
-            listOf("1", "2"),
+            listOf("1", "2", "3"),
             rows.map { it["version"] },
             "마이그레이션 구성이 바뀌었다. 의도한 변경이면 이 목록을 갱신한다.",
         )

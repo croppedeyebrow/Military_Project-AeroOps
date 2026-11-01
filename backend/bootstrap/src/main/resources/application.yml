@@ -20,6 +20,15 @@ spring:
       # (update/create는 JPA가 몰래 DDL을 바꿔 "단일 쓰기 주체" 원칙(ADR 0004)을 깬다).
       ddl-auto: validate
 
+  # Redis 접속(3-4). legacy가 발행한 텔레메트리 스트림을 읽는다.
+  # 사용자는 legacy가 앱 시작 시 등록하는 ACL 사용자(`telemetry`)와 같다 — 채널 분리 원칙상 기본 사용자를
+  # 쓰지 않는다(legacy-backend/app/core/redis_acl.py). 비밀번호는 legacy의 .env와 같은 값을 주입한다.
+  data:
+    redis:
+      url: ${C2_REDIS_URL:redis://localhost:6379/0}
+      username: ${C2_REDIS_USER:telemetry}
+      password: ${C2_REDIS_PASSWORD:}
+
   # 이벤트 발행 기록(Outbox) 설정 — 표가 아니라 메커니즘에 대한 설정이다(V2 마이그레이션 참고).
   modulith:
     events:
